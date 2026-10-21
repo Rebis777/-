@@ -2,22 +2,24 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Генератор мебели</title>
+<title>Генератор мебели Pro</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
 *{box-sizing:border-box}
 body{font-family:system-ui;margin:0;display:flex;height:100vh;background:#f8fafc;color:#1e293b;font-size:13px}
-.side{width:320px;background:#fff;padding:15px;overflow-y:auto;border-right:1px solid #e2e8f0}
+.side{width:340px;background:#fff;padding:15px;overflow-y:auto;border-right:1px solid #e2e8f0}
 .main{flex:1;display:flex;flex-direction:column;padding:15px;overflow:hidden}
 h2{margin:0 0 12px;font-size:1.1rem;color:#2563eb}
 h3{font-size:.9rem;color:#475569;margin:12px 0 6px;border-bottom:1px solid #e2e8f0;padding-bottom:3px}
 .fg{margin-bottom:10px}
 label{display:block;font-size:.75rem;font-weight:600;margin-bottom:3px;color:#64748b}
-input,select{width:100%;padding:6px;border:1px solid #cbd5e1;border-radius:4px;font-size:.85rem}
+input,select,textarea{width:100%;padding:6px;border:1px solid #cbd5e1;border-radius:4px;font-size:.85rem;font-family:inherit}
+textarea{resize:vertical;min-height:80px}
 .row{display:flex;gap:6px}.row>div{flex:1}
 button{width:100%;padding:9px;background:#2563eb;color:#fff;border:none;border-radius:4px;font-weight:600;cursor:pointer;margin-top:6px;font-size:.85rem}
 button:hover{background:#1d4ed8}
 button.sec{background:#64748b}
+button.ai{background:linear-gradient(135deg,#7e22ce,#a855f7)}
 #cv{flex:1;background:#e2e8f0;border-radius:6px;min-height:300px}
 .tabs{display:flex;gap:3px;margin-bottom:10px;flex-wrap:wrap}
 .tab{padding:6px 12px;background:#cbd5e1;border:none;border-radius:4px 4px 0 0;cursor:pointer;font-weight:600;font-size:.8rem}
@@ -36,18 +38,57 @@ th{background:#f1f5f9;font-weight:600;font-size:.75rem}
 .total-box{background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;padding:15px;border-radius:6px;margin-top:12px;text-align:center}
 .total-val{font-size:1.6rem;font-weight:bold}
 .breakdown div{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #e2e8f0;font-size:.85rem}
+.ai-result{background:#f0fdf4;border:1px solid #10b981;border-radius:4px;padding:10px;margin-top:8px;font-size:.82rem}
+.ai-result b{color:#065f46}
+.examples{background:#fef3c7;border:1px solid #f59e0b;border-radius:4px;padding:10px;margin-top:8px;font-size:.78rem}
+.examples b{color:#92400e}
+.examples li{margin:3px 0}
 </style>
 </head>
 <body>
 
 <div class="side">
-<h2>️ Параметры мебели</h2>
+<h2>🛠️ Параметры мебели</h2>
 
 <div class="fg">
-<label>Тип мебели</label>
+<label>🤖 Описание (напишите, что нужно)</label>
+<textarea id="aiDescription" placeholder="Например: Шкаф 1200x2000x600, 3 секции, 4 полки, 2 ящика"></textarea>
+<button class="ai" onclick="generateFromDescription()"> Сгенерировать по описанию</button>
+<div id="aiResult" style="display:none" class="ai-result"></div>
+<div class="examples">
+<b>Примеры запросов:</b>
+<ul>
+<li>Шкаф 1200x2000x600, 3 секции, 4 полки</li>
+<li>Обеденный стол 1400x800, высота 750, ЛДСП 18мм</li>
+<li>Кровать в шкафу 2400x2400, спальное место 1600x2000</li>
+<li>Стул со спинкой, сиденье 450x400</li>
+<li>Раскладной стол-книжка 1200x800</li>
+<li>Компьютерный стол с ящиком</li>
+</ul>
+</div>
+</div>
+
+<div class="fg">
+<label>Или выберите тип вручную</label>
 <select id="furnType" onchange="onTypeChange()">
+<optgroup label="Шкафы">
 <option value="cabinet">Корпусной шкаф</option>
 <option value="built-in-bed">🛏️ Кровать в шкафу</option>
+</optgroup>
+<optgroup label="Столы">
+<option value="dining-table">🍽️ Обеденный стол</option>
+<option value="computer-desk"> Компьютерный стол</option>
+<option value="folding-table">📖 Раскладной стол (книжка)</option>
+<option value="extendable-table">↔️ Раздвижной стол</option>
+<option value="coffee-table">☕ Журнальный столик</option>
+</optgroup>
+<optgroup label="Стулья">
+<option value="chair">🪑 Обычный стул</option>
+<option value="folding-chair">🪑 Складной стул</option>
+<option value="bar-stool">🍺 Барный стул</option>
+<option value="stool"> Табурет</option>
+<option value="folding-stool">🪑 Складной табурет</option>
+</optgroup>
 </select>
 </div>
 
@@ -62,8 +103,36 @@ th{background:#f1f5f9;font-weight:600;font-size:.75rem}
 </div>
 </div>
 
+<div id="tableBlock" style="display:none">
+<div class="fg">
+<label>Размеры стола (мм)</label>
+<div class="row">
+<div><label>Ширина</label><input type="number" id="tableW" value="1200"></div>
+<div><label>Глубина</label><input type="number" id="tableD" value="800"></div>
+</div>
+<div class="row">
+<div><label>Высота</label><input type="number" id="tableH" value="750"></div>
+<div><label>Толщина столешницы</label><input type="number" id="tableTopTh" value="40"></div>
+</div>
+</div>
+</div>
+
+<div id="chairBlock" style="display:none">
+<div class="fg">
+<label>Размеры стула (мм)</label>
+<div class="row">
+<div><label>Ширина сиденья</label><input type="number" id="seatW" value="450"></div>
+<div><label>Глубина сиденья</label><input type="number" id="seatD" value="400"></div>
+</div>
+<div class="row">
+<div><label>Высота сиденья</label><input type="number" id="seatH" value="450"></div>
+<div><label>Высота спинки</label><input type="number" id="backH" value="400"></div>
+</div>
+</div>
+</div>
+
 <div id="bedBlock" style="display:none">
-<h3>️ Кровать в шкафу</h3>
+<h3>🛏️ Кровать в шкафу</h3>
 <div class="row">
 <div><label>Ширина шкафа</label><input type="number" id="wardW" value="2400"></div>
 <div><label>Высота шкафа</label><input type="number" id="wardH" value="2400"></div>
@@ -89,8 +158,8 @@ th{background:#f1f5f9;font-weight:600;font-size:.75rem}
 </select>
 </div>
 
-<div class="fg">
-<label>Наполнение</label>
+<div class="fg" id="cabinetOptions">
+<label>Наполнение шкафа</label>
 <div class="row">
 <div><label>Секций</label><input type="number" id="sections" value="2" min="1" max="5"></div>
 <div><label>Полок/сек</label><input type="number" id="shelves" value="3" min="0" max="10"></div>
@@ -134,7 +203,7 @@ th{background:#f1f5f9;font-weight:600;font-size:.75rem}
 </div>
 
 <div id="price" class="tc">
-<h2>💰 Смета проекта</h2>
+<h2> Смета проекта</h2>
 <div id="breakdown" class="breakdown"></div>
 <div class="total-box">
 <div>СЕБЕСТОИМОСТЬ</div>
@@ -160,6 +229,7 @@ const PRICES = {
     "Петля накладная GTV": 95,
     "Ответная планка": 45,
     "Направляющие GTV 400мм (пара)": 320,
+    "Направляющие телескопические 500мм (пара)": 450,
     "Подпятник регулируемый": 35,
     "Ручка мебельная": 250,
     "Полкодержатель": 8,
@@ -168,7 +238,11 @@ const PRICES = {
     "Петля трансформерная": 380,
     "Анкерный болт M12×100": 85,
     "Рамка под матрас": 3500,
-    "Ламели берёзовые": 120
+    "Ламели берёзовые": 120,
+    "Петля рояльная 300мм": 180,
+    "Фиксатор складного механизма": 220,
+    "Ножка мебельная регулируемая": 120,
+    "Царга (металл)": 350
 };
 
 // ========== 3D ==========
@@ -206,11 +280,180 @@ function addBox(x, y, z, w, h, d, col = 0xd4a373) {
     m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: 0x5c4033 })));
 }
 
+// ========== AI ПАРСЕР ==========
+function parseDescription(text) {
+    const params = {
+        type: null,
+        width: null, height: null, depth: null,
+        material: 18,
+        sections: 2, shelves: 3, drawers: 1,
+        doorType: 'hinged',
+        tableW: 1200, tableD: 800, tableH: 750, tableTopTh: 40,
+        seatW: 450, seatD: 400, seatH: 450, backH: 400,
+        wardW: 2400, wardH: 2400, wardD: 450,
+        bedW: 1600, bedL: 2000, mattressWeight: 30
+    };
+    
+    const t = text.toLowerCase();
+    
+    // Определение типа мебели
+    if (t.includes('шкаф') && (t.includes('кровать') || t.includes('откидн'))) {
+        params.type = 'built-in-bed';
+    } else if (t.includes('шкаф')) {
+        params.type = 'cabinet';
+    } else if (t.includes('обеденн') || (t.includes('стол') && !t.includes('компьютер') && !t.includes('журнальн') && !t.includes('раскладн') && !t.includes('раздвижн'))) {
+        params.type = 'dining-table';
+    } else if (t.includes('компьютер') || (t.includes('стол') && (t.includes('ящик') || t.includes('монитор')))) {
+        params.type = 'computer-desk';
+    } else if (t.includes('книжк') || (t.includes('раскладн') && t.includes('стол'))) {
+        params.type = 'folding-table';
+    } else if (t.includes('раздвижн') || (t.includes('телескоп'))) {
+        params.type = 'extendable-table';
+    } else if (t.includes('журнальн') || (t.includes('кофе')) || (t.includes('столик'))) {
+        params.type = 'coffee-table';
+    } else if (t.includes('барн') || (t.includes('высокий') && t.includes('стул'))) {
+        params.type = 'bar-stool';
+    } else if (t.includes('складн') && t.includes('стул')) {
+        params.type = 'folding-chair';
+    } else if (t.includes('стул') || t.includes('спинк')) {
+        params.type = 'chair';
+    } else if (t.includes('складн') && t.includes('табурет')) {
+        params.type = 'folding-stool';
+    } else if (t.includes('табурет')) {
+        params.type = 'stool';
+    }
+    
+    // Извлечение размеров (числа)
+    const numbers = t.match(/\d+/g) || [];
+    const dims = numbers.map(n => parseInt(n)).filter(n => n > 100 && n < 3000);
+    
+    if (dims.length >= 3) {
+        if (params.type === 'cabinet' || params.type === 'built-in-bed') {
+            params.width = dims[0];
+            params.height = dims[1];
+            params.depth = dims[2];
+        } else if (params.type && params.type.includes('table')) {
+            params.tableW = dims[0];
+            params.tableD = dims[1];
+            params.tableH = dims[2] || 750;
+        } else if (params.type && params.type.includes('chair') || params.type === 'stool') {
+            params.seatW = dims[0];
+            params.seatD = dims[1];
+            params.seatH = dims[2] || 450;
+        }
+    } else if (dims.length === 2) {
+        if (params.type && params.type.includes('table')) {
+            params.tableW = dims[0];
+            params.tableD = dims[1];
+        } else if (params.type && (params.type.includes('chair') || params.type === 'stool')) {
+            params.seatW = dims[0];
+            params.seatD = dims[1];
+        }
+    }
+    
+    // Материал
+    if (t.includes('16мм') || t.includes('16 мм')) params.material = 16;
+    else if (t.includes('22мм') || t.includes('22 мм')) params.material = 22;
+    else if (t.includes('18мм') || t.includes('18 мм')) params.material = 18;
+    
+    // Наполнение шкафа
+    const secMatch = t.match(/(\d+)\s*секц/);
+    if (secMatch) params.sections = parseInt(secMatch[1]);
+    
+    const shelfMatch = t.match(/(\d+)\s*полок/);
+    if (shelfMatch) params.shelves = parseInt(shelfMatch[1]);
+    
+    const drawerMatch = t.match(/(\d+)\s*ящик/);
+    if (drawerMatch) params.drawers = parseInt(drawerMatch[1]);
+    
+    if (t.includes('открыт') && !t.includes('распашн')) params.doorType = 'open';
+    
+    // Кровать в шкафу
+    if (params.type === 'built-in-bed') {
+        if (dims.length >= 2) {
+            params.wardW = dims[0];
+            params.wardH = dims[1];
+        }
+        const bedMatch = t.match(/спальн[оео].*?(\d{3,4})\s*[xх×]\s*(\d{3,4})/);
+        if (bedMatch) {
+            params.bedW = parseInt(bedMatch[1]);
+            params.bedL = parseInt(bedMatch[2]);
+        }
+        const weightMatch = t.match(/(\d+)\s*кг/);
+        if (weightMatch) params.mattressWeight = parseInt(weightMatch[1]);
+    }
+    
+    return params;
+}
+
+function generateFromDescription() {
+    const desc = document.getElementById('aiDescription').value.trim();
+    if (!desc) {
+        alert('Введите описание мебели');
+        return;
+    }
+    
+    const params = parseDescription(desc);
+    const resultDiv = document.getElementById('aiResult');
+    
+    if (!params.type) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<b>⚠️ Не удалось определить тип мебели.</b><br>Попробуйте указать: шкаф, стол, стул, кровать, табурет';
+        return;
+    }
+    
+    // Применяем параметры к полям
+    document.getElementById('furnType').value = params.type;
+    document.getElementById('material').value = params.material;
+    
+    if (params.width) document.getElementById('width').value = params.width;
+    if (params.height) document.getElementById('height').value = params.height;
+    if (params.depth) document.getElementById('depth').value = params.depth;
+    
+    document.getElementById('tableW').value = params.tableW;
+    document.getElementById('tableD').value = params.tableD;
+    document.getElementById('tableH').value = params.tableH;
+    
+    document.getElementById('seatW').value = params.seatW;
+    document.getElementById('seatD').value = params.seatD;
+    document.getElementById('seatH').value = params.seatH;
+    document.getElementById('backH').value = params.backH;
+    
+    document.getElementById('wardW').value = params.wardW;
+    document.getElementById('wardH').value = params.wardH;
+    document.getElementById('wardD').value = params.wardD;
+    document.getElementById('bedW').value = params.bedW;
+    document.getElementById('bedL').value = params.bedL;
+    document.getElementById('mattressWeight').value = params.mattressWeight;
+    
+    document.getElementById('sections').value = params.sections;
+    document.getElementById('shelves').value = params.shelves;
+    document.getElementById('drawers').value = params.drawers;
+    document.getElementById('doorType').value = params.doorType;
+    
+    onTypeChange();
+    generate();
+    
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = `<b>✅ Распознано:</b><br>
+        Тип: ${params.type}<br>
+        Материал: ЛДСП ${params.material}мм<br>
+        ${params.width ? `Размеры: ${params.width}×${params.height}×${params.depth} мм<br>` : ''}
+        ${params.sections ? `Секций: ${params.sections}, Полок: ${params.shelves}, Ящиков: ${params.drawers}<br>` : ''}
+        ${params.tableW !== 1200 ? `Стол: ${params.tableW}×${params.tableD}×${params.tableH} мм<br>` : ''}
+        ${params.seatW !== 450 ? `Стул: сиденье ${params.seatW}×${params.seatD}, высота ${params.seatH} мм<br>` : ''}
+        ${params.bedW !== 1600 ? `Кровать: ${params.bedW}×${params.bedL} мм, матрас ${params.mattressWeight} кг<br>` : ''}
+    `;
+}
+
 // ========== UI ==========
 function onTypeChange() {
     const t = document.getElementById('furnType').value;
-    document.getElementById('standardBlock').style.display = t === 'cabinet' ? 'block' : 'none';
+    document.getElementById('standardBlock').style.display = ['cabinet', 'built-in-bed'].includes(t) ? 'block' : 'none';
+    document.getElementById('tableBlock').style.display = ['dining-table', 'computer-desk', 'folding-table', 'extendable-table', 'coffee-table'].includes(t) ? 'block' : 'none';
+    document.getElementById('chairBlock').style.display = ['chair', 'folding-chair', 'bar-stool', 'stool', 'folding-stool'].includes(t) ? 'block' : 'none';
     document.getElementById('bedBlock').style.display = t === 'built-in-bed' ? 'block' : 'none';
+    document.getElementById('cabinetOptions').style.display = ['cabinet', 'built-in-bed'].includes(t) ? 'block' : 'none';
 }
 
 function sw(id, btn) {
@@ -231,11 +474,18 @@ function generate() {
     const type = document.getElementById('furnType').value;
     const th = parseInt(document.getElementById('material').value);
     
-    if (type === 'cabinet') {
-        generateCabinet(th);
-    } else if (type === 'built-in-bed') {
-        generateBuiltInBed(th);
-    }
+    if (type === 'cabinet') generateCabinet(th);
+    else if (type === 'built-in-bed') generateBuiltInBed(th);
+    else if (type === 'dining-table') generateDiningTable(th);
+    else if (type === 'computer-desk') generateComputerDesk(th);
+    else if (type === 'folding-table') generateFoldingTable(th);
+    else if (type === 'extendable-table') generateExtendableTable(th);
+    else if (type === 'coffee-table') generateCoffeeTable(th);
+    else if (type === 'chair') generateChair(th);
+    else if (type === 'folding-chair') generateFoldingChair(th);
+    else if (type === 'bar-stool') generateBarStool(th);
+    else if (type === 'stool') generateStool(th);
+    else if (type === 'folding-stool') generateFoldingStool(th);
     
     updateUI();
 }
@@ -254,28 +504,23 @@ function generateCabinet(th) {
     const botH = dr > 0 ? dr * drH + (dr + 1) * 20 : 0;
     const upH = H - botH - 2 * th;
     
-    // Боковины
     addBox(-W/2 + th/2, H/2, 0, th, H, D, 0xc49a6c);
     addBox(W/2 - th/2, H/2, 0, th, H, D, 0xc49a6c);
     currentParts.push({ n: "Боковина", l: H, w: D, q: 2, eL: 2.0, eW: 0.4 });
     
-    // Крышка/дно
     addBox(0, H - th/2, 0, W - 2*th, th, D, 0xc49a6c);
     addBox(0, th/2, 0, W - 2*th, th, D, 0xc49a6c);
     currentParts.push({ n: "Крышка/Дно", l: W - 2*th, w: D, q: 2, eL: 2.0, eW: 2.0 });
     
-    // Задняя стенка
     addBox(0, H/2, -D/2 + 1.5, W - 40, H - 40, 3, 0x94a3b8);
     currentParts.push({ n: "Задняя стенка (ХДФ 3мм)", l: H - 40, w: W - 40, q: 1, eL: 0, eW: 0 });
     
-    // Перегородки
     for (let i = 1; i < sec; i++) {
         const x = -W/2 + th + i * (secW + th);
         addBox(x, H/2, 0, th, H - 2*th, D - 20, 0xc49a6c);
         currentParts.push({ n: "Перегородка", l: H - 2*th, w: D - 20, q: 1, eL: 2.0, eW: 0.4 });
     }
     
-    // Полки
     const shQ = sec * shS;
     for (let s = 0; s < sec; s++) {
         for (let sh = 0; sh < shS; sh++) {
@@ -284,11 +529,8 @@ function generateCabinet(th) {
             addBox(x, y, 0, secW - 20, th, D - 20, 0xd4a373);
         }
     }
-    if (shQ > 0) {
-        currentParts.push({ n: "Полка", l: secW - 20, w: D - 20, q: shQ, eL: 2.0, eW: 0.4 });
-    }
+    if (shQ > 0) currentParts.push({ n: "Полка", l: secW - 20, w: D - 20, q: shQ, eL: 2.0, eW: 0.4 });
     
-    // Ящики
     if (dr > 0) {
         const drW = secW - 26;
         const drD = D - 100;
@@ -301,7 +543,6 @@ function generateCabinet(th) {
         currentParts.push({ n: "Дно ящика (ХДФ)", l: drW - 16, w: drD - 16, q: dr, eL: 0, eW: 0 });
     }
     
-    // Фасады
     if (dt === 'hinged') {
         const dH = H - 4;
         const dW = (W / sec) - 4;
@@ -312,7 +553,6 @@ function generateCabinet(th) {
         currentParts.push({ n: "Фасад", l: dH, w: dW, q: sec, eL: 2.0, eW: 2.0 });
     }
     
-    // Фурнитура
     const conf = (2 + sec - 1) * 4 + (shQ * 2) + (dr * 8);
     const hinges = dt === 'hinged' ? sec * (H > 1500 ? 3 : 2) : 0;
     const slides = dr * 2;
@@ -327,9 +567,7 @@ function generateCabinet(th) {
         { n: "Саморез 4×30", q: hinges * 2 + dr * 4, note: "Для петель" },
         { n: "Полкодержатель", q: shQ * 4, note: "4 на полку" }
     ];
-    if (dt === 'hinged') {
-        currentHardware.push({ n: "Ручка мебельная", q: sec, note: "На каждый фасад" });
-    }
+    if (dt === 'hinged') currentHardware.push({ n: "Ручка мебельная", q: sec, note: "На каждый фасад" });
 }
 
 function generateBuiltInBed(th) {
@@ -340,7 +578,6 @@ function generateBuiltInBed(th) {
     const bedL = parseInt(document.getElementById('bedL').value);
     const mattressWeight = parseInt(document.getElementById('mattressWeight').value);
     
-    // Корпус шкафа
     addBox(-W/2 + th/2, H/2, 0, th, H, D, 0xc49a6c);
     addBox(W/2 - th/2, H/2, 0, th, H, D, 0xc49a6c);
     currentParts.push({ n: "Боковина шкафа", l: H, w: D, q: 2, eL: 2.0, eW: 0.4 });
@@ -352,22 +589,19 @@ function generateBuiltInBed(th) {
     addBox(0, H/2, -D/2 + 1.5, W - 20, H - 20, 3, 0x94a3b8);
     currentParts.push({ n: "Задняя стенка (ХДФ)", l: H - 20, w: W - 20, q: 1, eL: 0, eW: 0 });
     
-    // Кровать (в сложенном виде — вертикально)
     const bedBottomY = 400;
     addBox(0, bedBottomY + bedL/2 + th, 0, bedW, bedL, 100, 0x3b82f6);
     addBox(0, bedBottomY + bedL/2 + th, D/2 + 1, bedW - 4, bedL - 4, 20, 0x0ea5e9);
     currentParts.push({ n: "Рама кровати", l: bedL, w: bedW, q: 1, eL: 2.0, eW: 2.0 });
     currentParts.push({ n: "Фасад кровати", l: bedL - 4, w: bedW - 4, q: 1, eL: 2.0, eW: 2.0 });
     
-    // Расчёт газлифтов
     const frameWeight = (bedW * bedL * th * 0.7) / 1000;
     const totalWeight = mattressWeight + frameWeight;
-    const gasliftForce = totalWeight * 9.81 * 1.15;
     
     currentHardware = [
         { n: "Конфирмат 5×50", q: 60, note: "Корпус" },
         { n: "Шкант 8×30", q: 60, note: "Фиксация" },
-        { n: "Газлифт 2200N", q: 2, note: `${totalWeight.toFixed(1)} кг, ${gasliftForce.toFixed(0)}N` },
+        { n: "Газлифт 2200N", q: 2, note: `${totalWeight.toFixed(1)} кг` },
         { n: "Механизм Panto", q: 1, note: "Комплект" },
         { n: "Петля трансформерная", q: 4, note: "Для рамы" },
         { n: "Анкерный болт M12×100", q: 6, note: "К стене" },
@@ -376,9 +610,316 @@ function generateBuiltInBed(th) {
     ];
 }
 
+function generateDiningTable(th) {
+    const W = parseInt(document.getElementById('tableW').value);
+    const D = parseInt(document.getElementById('tableD').value);
+    const H = parseInt(document.getElementById('tableH').value);
+    const topTh = parseInt(document.getElementById('tableTopTh').value);
+    
+    addBox(0, H - topTh/2, 0, W, topTh, D, 0xd4a373);
+    currentParts.push({ n: "Столешница", l: W, w: D, q: 1, eL: 2.0, eW: 2.0 });
+    
+    const legW = 60, legD = 60, legH = H - topTh;
+    const positions = [
+        [-W/2 + legW/2 + 20, legH/2, -D/2 + legD/2 + 20],
+        [W/2 - legW/2 - 20, legH/2, -D/2 + legD/2 + 20],
+        [-W/2 + legW/2 + 20, legH/2, D/2 - legD/2 - 20],
+        [W/2 - legW/2 - 20, legH/2, D/2 - legD/2 - 20]
+    ];
+    positions.forEach(pos => {
+        addBox(pos[0], pos[1], pos[2], legW, legH, legD, 0xc49a6c);
+    });
+    currentParts.push({ n: "Ножка стола", l: legH, w: legW, q: 4, eL: 0.4, eW: 0.4 });
+    
+    const apronH = 80;
+    addBox(0, H - topTh - apronH/2, -D/2 + 20, W - 40, apronH, 20, 0xc49a6c);
+    addBox(0, H - topTh - apronH/2, D/2 - 20, W - 40, apronH, 20, 0xc49a6c);
+    addBox(-W/2 + 20, H - topTh - apronH/2, 0, 20, apronH, D - 40, 0xc49a6c);
+    addBox(W/2 - 20, H - topTh - apronH/2, 0, 20, apronH, D - 40, 0xc49a6c);
+    currentParts.push({ n: "Царга продольная", l: W - 40, w: apronH, q: 2, eL: 0.4, eW: 0.4 });
+    currentParts.push({ n: "Царга поперечная", l: D - 40, w: apronH, q: 2, eL: 0.4, eW: 0.4 });
+    
+    currentHardware = [
+        { n: "Конфирмат 5×50", q: 16, note: "Крепление ножек и царг" },
+        { n: "Шкант 8×30", q: 16, note: "Фиксация" },
+        { n: "Подпятник регулируемый", q: 4, note: "На ножки" }
+    ];
+}
+
+function generateComputerDesk(th) {
+    const W = parseInt(document.getElementById('tableW').value);
+    const D = parseInt(document.getElementById('tableD').value);
+    const H = parseInt(document.getElementById('tableH').value);
+    const topTh = parseInt(document.getElementById('tableTopTh').value);
+    
+    addBox(0, H - topTh/2, 0, W, topTh, D, 0xd4a373);
+    currentParts.push({ n: "Столешница", l: W, w: D, q: 1, eL: 2.0, eW: 2.0 });
+    
+    addBox(-W/2 + th/2, H/2, 0, th, H, D, 0xc49a6c);
+    addBox(W/2 - th/2, H/2, 0, th, H, D, 0xc49a6c);
+    currentParts.push({ n: "Боковина", l: H, w: D, q: 2, eL: 2.0, eW: 0.4 });
+    
+    const shelfY = H - 300;
+    addBox(0, shelfY, -D/2 + 100, W - 2*th, th, D - 200, 0xd4a373);
+    currentParts.push({ n: "Полка для монитора", l: W - 2*th, w: D - 200, q: 1, eL: 2.0, eW: 0.4 });
+    
+    const kbY = H - 150;
+    addBox(0, kbY, 0, W - 100, 20, D - 100, 0xe2c79c);
+    currentParts.push({ n: "Полка под клавиатуру", l: W - 100, w: D - 100, q: 1, eL: 0.4, eW: 0.4 });
+    
+    const drawerW = W/2 - 20;
+    const drawerH = 150;
+    const drawerD = D - 100;
+    addBox(-W/4, H/2 - drawerH/2, 0, drawerW, drawerH, drawerD, 0xe2c79c);
+    currentParts.push({ n: "Боковина ящика", l: drawerD, w: drawerH, q: 2, eL: 0.4, eW: 0.4 });
+    currentParts.push({ n: "Перед/Зад ящика", l: drawerW - 32, w: drawerH, q: 2, eL: 0.4, eW: 0.4 });
+    currentParts.push({ n: "Дно ящика (ХДФ)", l: drawerW - 16, w: drawerD - 16, q: 1, eL: 0, eW: 0 });
+    
+    currentHardware = [
+        { n: "Конфирмат 5×50", q: 20, note: "Крепление" },
+        { n: "Шкант 8×30", q: 20, note: "Фиксация" },
+        { n: "Направляющие GTV 400мм (пара)", q: 1, note: "Для ящика" },
+        { n: "Ручка мебельная", q: 1, note: "На ящик" },
+        { n: "Подпятник регулируемый", q: 4, note: "На дно" }
+    ];
+}
+
+function generateFoldingTable(th) {
+    const W = parseInt(document.getElementById('tableW').value);
+    const D = parseInt(document.getElementById('tableD').value);
+    const H = parseInt(document.getElementById('tableH').value);
+    const topTh = parseInt(document.getElementById('tableTopTh').value);
+    
+    const centerW = W / 3;
+    addBox(0, H - topTh/2, 0, centerW, topTh, D, 0xd4a373);
+    currentParts.push({ n: "Центральная столешница", l: centerW, w: D, q: 1, eL: 2.0, eW: 2.0 });
+    
+    const wingW = (W - centerW) / 2;
+    addBox(-centerW/2 - wingW/2, H - topTh/2, 0, wingW, topTh, D, 0x3b82f6);
+    addBox(centerW/2 + wingW/2, H - topTh/2, 0, wingW, topTh, D, 0x3b82f6);
+    currentParts.push({ n: "Крыло стола", l: wingW, w: D, q: 2, eL: 2.0, eW: 2.0 });
+    
+    const legW = 60, legD = 60, legH = H - topTh;
+    addBox(-centerW/2 + 20, legH/2, -D/2 + 20, legW, legH, legD, 0xc49a6c);
+    addBox(-centerW/2 + 20, legH/2, D/2 - 20, legW, legH, legD, 0xc49a6c);
+    addBox(centerW/2 - 20, legH/2, -D/2 + 20, legW, legH, legD, 0xc49a6c);
+    addBox(centerW/2 - 20, legH/2, D/2 - 20, legW, legH, legD, 0xc49a6c);
+    currentParts.push({ n: "Ножка стола", l: legH, w: legW, q: 4, eL: 0.4, eW: 0.4 });
+    
+    addBox(-centerW/2 - wingW/2, legH/2, 0, 40, legH, 40, 0x94a3b8);
+    addBox(centerW/2 + wingW/2, legH/2, 0, 40, legH, 40, 0x94a3b8);
+    currentParts.push({ n: "Откидная ножка", l: legH, w: 40, q: 2, eL: 0.4, eW: 0.4 });
+    
+    currentHardware = [
+        { n: "Конфирмат 5×50", q: 12, note: "Крепление" },
+        { n: "Петля рояльная 300мм", q: 4, note: "Для крыльев и ножек" },
+        { n: "Фиксатор складного механизма", q: 4, note: "Фиксация в разложенном виде" },
+        { n: "Подпятник регулируемый", q: 6, note: "На все ножки" }
+    ];
+}
+
+function generateExtendableTable(th) {
+    const W = parseInt(document.getElementById('tableW').value);
+    const D = parseInt(document.getElementById('tableD').value);
+    const H = parseInt(document.getElementById('tableH').value);
+    const topTh = parseInt(document.getElementById('tableTopTh').value);
+    
+    const halfW = W / 2 - 50;
+    addBox(-halfW/2 - 25, H - topTh/2, 0, halfW, topTh, D, 0xd4a373);
+    addBox(halfW/2 + 25, H - topTh/2, 0, halfW, topTh, D, 0xd4a373);
+    currentParts.push({ n: "Половина столешницы", l: halfW, w: D, q: 2, eL: 2.0, eW: 2.0 });
+    
+    const insertW = 400;
+    addBox(0, H - topTh/2, D + 200, insertW, topTh, D, 0x10b981);
+    currentParts.push({ n: "Вставка стола", l: insertW, w: D, q: 1, eL: 2.0, eW: 2.0 });
+    
+    const legW = 60, legD = 60, legH = H - topTh;
+    addBox(-W/2 + 50, legH/2, -D/2 + 50, legW, legH, legD, 0xc49a6c);
+    addBox(W/2 - 50, legH/2, -D/2 + 50, legW, legH, legD, 0xc49a6c);
+    addBox(-W/2 + 50, legH/2, D/2 - 50, legW, legH, legD, 0xc49a6c);
+    addBox(W/2 - 50, legH/2, D/2 - 50, legW, legH, legD, 0xc49a6c);
+    currentParts.push({ n: "Ножка стола", l: legH, w: legW, q: 4, eL: 0.4, eW: 0.4 });
+    
+    addBox(0, H - topTh - 30, 0, W - 100, 20, 20, 0x94a3b8);
+    currentParts.push({ n: "Направляющая телескопическая", l: W - 100, w: 20, q: 2, eL: 0, eW: 0 });
+    
+    currentHardware = [
+        { n: "Конфирмат 5×50", q: 16, note: "Крепление" },
+        { n: "Направляющие телескопические 500мм (пара)", q: 2, note: "Для раздвижения" },
+        { n: "Подпятник регулируемый", q: 4, note: "На ножки" }
+    ];
+}
+
+function generateCoffeeTable(th) {
+    const W = parseInt(document.getElementById('tableW').value);
+    const D = parseInt(document.getElementById('tableD').value);
+    const H = parseInt(document.getElementById('tableH').value);
+    const topTh = parseInt(document.getElementById('tableTopTh').value);
+    
+    addBox(0, H - topTh/2, 0, W, topTh, D, 0xd4a373);
+    currentParts.push({ n: "Столешница", l: W, w: D, q: 1, eL: 2.0, eW: 2.0 });
+    
+    const shelfY = H / 3;
+    addBox(0, shelfY, 0, W - 40, th, D - 40, 0xd4a373);
+    currentParts.push({ n: "Нижняя полка", l: W - 40, w: D - 40, q: 1, eL: 2.0, eW: 0.4 });
+    
+    const legW = 50, legD = 50, legH = H - topTh;
+    addBox(-W/2 + 40, legH/2, -D/2 + 40, legW, legH, legD, 0xc49a6c);
+    addBox(W/2 - 40, legH/2, -D/2 + 40, legW, legH, legD, 0xc49a6c);
+    addBox(-W/2 + 40, legH/2, D/2 - 40, legW, legH, legD, 0xc49a6c);
+    addBox(W/2 - 40, legH/2, D/2 - 40, legW, legH, legD, 0xc49a6c);
+    currentParts.push({ n: "Ножка", l: legH, w: legW, q: 4, eL: 0.4, eW: 0.4 });
+    
+    currentHardware = [
+        { n: "Конфирмат 5×50", q: 12, note: "Крепление" },
+        { n: "Шкант 8×30", q: 12, note: "Фиксация" },
+        { n: "Подпятник регулируемый", q: 4, note: "На ножки" }
+    ];
+}
+
+function generateChair(th) {
+    const seatW = parseInt(document.getElementById('seatW').value);
+    const seatD = parseInt(document.getElementById('seatD').value);
+    const seatH = parseInt(document.getElementById('seatH').value);
+    const backH = parseInt(document.getElementById('backH').value);
+    
+    addBox(0, seatH, 0, seatW, 20, seatD, 0xd4a373);
+    currentParts.push({ n: "Сиденье", l: seatW, w: seatD, q: 1, eL: 2.0, eW: 2.0 });
+    
+    addBox(0, seatH + backH/2, -seatD/2 + 10, seatW - 20, backH, 20, 0xc49a6c);
+    currentParts.push({ n: "Спинка", l: backH, w: seatW - 20, q: 1, eL: 2.0, eW: 0.4 });
+    
+    const legW = 40, legD = 40, legH = seatH - 20;
+    addBox(-seatW/2 + 30, legH/2, -seatD/2 + 30, legW, legH, legD, 0xc49a6c);
+    addBox(seatW/2 - 30, legH/2, -seatD/2 + 30, legW, legH, legD, 0xc49a6c);
+    addBox(-seatW/2 + 30, legH/2, seatD/2 - 30, legW, legH, legD, 0xc49a6c);
+    addBox(seatW/2 - 30, legH/2, seatD/2 - 30, legW, legH, legD, 0xc49a6c);
+    currentParts.push({ n: "Ножка стула", l: legH, w: legW, q: 4, eL: 0.4, eW: 0.4 });
+    
+    addBox(0, seatH - 60, -seatD/2 + 20, seatW - 60, 40, 20, 0xc49a6c);
+    addBox(0, seatH - 60, seatD/2 - 20, seatW - 60, 40, 20, 0xc49a6c);
+    addBox(-seatW/2 + 20, seatH - 60, 0, 20, 40, seatD - 60, 0xc49a6c);
+    addBox(seatW/2 - 20, seatH - 60, 0, 20, 40, seatD - 60, 0xc49a6c);
+    currentParts.push({ n: "Царга продольная", l: seatW - 60, w: 40, q: 2, eL: 0.4, eW: 0.4 });
+    currentParts.push({ n: "Царга поперечная", l: seatD - 60, w: 40, q: 2, eL: 0.4, eW: 0.4 });
+    
+    currentHardware = [
+        { n: "Конфирмат 5×50", q: 16, note: "Крепление" },
+        { n: "Шкант 8×30", q: 16, note: "Фиксация" },
+        { n: "Подпятник регулируемый", q: 4, note: "На ножки" }
+    ];
+}
+
+function generateFoldingChair(th) {
+    const seatW = parseInt(document.getElementById('seatW').value);
+    const seatD = parseInt(document.getElementById('seatD').value);
+    const seatH = parseInt(document.getElementById('seatH').value);
+    const backH = parseInt(document.getElementById('backH').value);
+    
+    addBox(0, seatH/2, 0, seatW, 20, seatD, 0xd4a373);
+    currentParts.push({ n: "Сиденье", l: seatW, w: seatD, q: 1, eL: 2.0, eW: 2.0 });
+    
+    addBox(0, seatH + backH/2, 0, seatW - 20, backH, 20, 0xc49a6c);
+    currentParts.push({ n: "Спинка", l: backH, w: seatW - 20, q: 1, eL: 2.0, eW: 0.4 });
+    
+    const legH = seatH;
+    addBox(0, legH/2, 0, 30, legH, 30, 0x94a3b8);
+    addBox(0, legH/2, 0, 30, legH, 30, 0x94a3b8);
+    currentParts.push({ n: "Ножка крестовины", l: legH, w: 30, q: 4, eL: 0.4, eW: 0.4 });
+    
+    currentHardware = [
+        { n: "Конфирмат 5×50", q: 8, note: "Крепление" },
+        { n: "Петля рояльная 300мм", q: 2, note: "Для складывания" },
+        { n: "Фиксатор складного механизма", q: 2, note: "Фиксация" },
+        { n: "Подпятник регулируемый", q: 4, note: "На ножки" }
+    ];
+}
+
+function generateBarStool(th) {
+    const seatW = parseInt(document.getElementById('seatW').value);
+    const seatD = parseInt(document.getElementById('seatD').value);
+    const seatH = parseInt(document.getElementById('seatH').value) + 300;
+    const backH = parseInt(document.getElementById('backH').value);
+    
+    addBox(0, seatH, 0, seatW, 20, seatD, 0xd4a373);
+    currentParts.push({ n: "Сиденье", l: seatW, w: seatD, q: 1, eL: 2.0, eW: 2.0 });
+    
+    if (backH > 0) {
+        addBox(0, seatH + backH/2, -seatD/2 + 10, seatW - 20, backH, 20, 0xc49a6c);
+        currentParts.push({ n: "Спинка", l: backH, w: seatW - 20, q: 1, eL: 2.0, eW: 0.4 });
+    }
+    
+    const legW = 40, legD = 40, legH = seatH - 20;
+    addBox(-seatW/2 + 30, legH/2, -seatD/2 + 30, legW, legH, legD, 0xc49a6c);
+    addBox(seatW/2 - 30, legH/2, -seatD/2 + 30, legW, legH, legD, 0xc49a6c);
+    addBox(-seatW/2 + 30, legH/2, seatD/2 - 30, legW, legH, legD, 0xc49a6c);
+    addBox(seatW/2 - 30, legH/2, seatD/2 - 30, legW, legH, legD, 0xc49a6c);
+    currentParts.push({ n: "Ножка барного стула", l: legH, w: legW, q: 4, eL: 0.4, eW: 0.4 });
+    
+    const footrestY = seatH / 3;
+    addBox(0, footrestY, -seatD/2 + 20, seatW - 60, 20, 20, 0x94a3b8);
+    addBox(0, footrestY, seatD/2 - 20, seatW - 60, 20, 20, 0x94a3b8);
+    currentParts.push({ n: "Подножка", l: seatW - 60, w: 20, q: 2, eL: 0.4, eW: 0.4 });
+    
+    currentHardware = [
+        { n: "Конфирмат 5×50", q: 16, note: "Крепление" },
+        { n: "Шкант 8×30", q: 16, note: "Фиксация" },
+        { n: "Подпятник регулируемый", q: 4, note: "На ножки" }
+    ];
+}
+
+function generateStool(th) {
+    const seatW = parseInt(document.getElementById('seatW').value);
+    const seatD = parseInt(document.getElementById('seatD').value);
+    const seatH = parseInt(document.getElementById('seatH').value);
+    
+    addBox(0, seatH, 0, seatW, 20, seatD, 0xd4a373);
+    currentParts.push({ n: "Сиденье табурета", l: seatW, w: seatD, q: 1, eL: 2.0, eW: 2.0 });
+    
+    const legW = 40, legD = 40, legH = seatH - 20;
+    addBox(-seatW/2 + 30, legH/2, -seatD/2 + 30, legW, legH, legD, 0xc49a6c);
+    addBox(seatW/2 - 30, legH/2, -seatD/2 + 30, legW, legH, legD, 0xc49a6c);
+    addBox(-seatW/2 + 30, legH/2, seatD/2 - 30, legW, legH, legD, 0xc49a6c);
+    addBox(seatW/2 - 30, legH/2, seatD/2 - 30, legW, legH, legD, 0xc49a6c);
+    currentParts.push({ n: "Ножка табурета", l: legH, w: legW, q: 4, eL: 0.4, eW: 0.4 });
+    
+    addBox(0, seatH - 60, -seatD/2 + 20, seatW - 60, 40, 20, 0xc49a6c);
+    addBox(0, seatH - 60, seatD/2 - 20, seatW - 60, 40, 20, 0xc49a6c);
+    addBox(-seatW/2 + 20, seatH - 60, 0, 20, 40, seatD - 60, 0xc49a6c);
+    addBox(seatW/2 - 20, seatH - 60, 0, 20, 40, seatD - 60, 0xc49a6c);
+    currentParts.push({ n: "Царга табурета", l: seatW - 60, w: 40, q: 2, eL: 0.4, eW: 0.4 });
+    currentParts.push({ n: "Царга поперечная", l: seatD - 60, w: 40, q: 2, eL: 0.4, eW: 0.4 });
+    
+    currentHardware = [
+        { n: "Конфирмат 5×50", q: 16, note: "Крепление" },
+        { n: "Шкант 8×30", q: 16, note: "Фиксация" },
+        { n: "Подпятник регулируемый", q: 4, note: "На ножки" }
+    ];
+}
+
+function generateFoldingStool(th) {
+    const seatW = parseInt(document.getElementById('seatW').value);
+    const seatD = parseInt(document.getElementById('seatD').value);
+    const seatH = parseInt(document.getElementById('seatH').value);
+    
+    addBox(0, seatH, 0, seatW, 20, seatD, 0xd4a373);
+    currentParts.push({ n: "Сиденье", l: seatW, w: seatD, q: 1, eL: 2.0, eW: 2.0 });
+    
+    const legH = seatH - 20;
+    addBox(0, legH/2, 0, 30, legH, 30, 0xc49a6c);
+    addBox(0, legH/2, 0, 30, legH, 30, 0xc49a6c);
+    currentParts.push({ n: "Ножка крестовины", l: legH, w: 30, q: 4, eL: 0.4, eW: 0.4 });
+    
+    currentHardware = [
+        { n: "Конфирмат 5×50", q: 8, note: "Крепление" },
+        { n: "Петля рояльная 300мм", q: 1, note: "Для складывания" },
+        { n: "Фиксатор складного механизма", q: 1, note: "Фиксация" },
+        { n: "Подпятник регулируемый", q: 4, note: "На ножки" }
+    ];
+}
+
 // ========== UI ОБНОВЛЕНИЕ ==========
 function updateUI() {
-    // Деталировка
     const g = {};
     currentParts.forEach(p => {
         const k = `${p.n}|${p.l}|${p.w}`;
@@ -397,7 +938,6 @@ function updateUI() {
         <div class="sb"><div class="sv">${currentHardware.length}</div><div class="sl">Позиций фурнитуры</div></div>
     `;
     
-    // Фурнитура
     document.getElementById('hT').innerHTML = currentHardware.map(h => {
         const pr = PRICES[h.n] || 0;
         return `<tr><td>${h.n}</td><td>${h.q}</td><td>${pr} ₽</td><td><b>${(pr * h.q).toFixed(0)} ₽</b></td><td>${h.note}</td></tr>`;
@@ -519,7 +1059,7 @@ function calcTotal() {
     const total = matCost + edgeCost + hardCost + drillCost;
     document.getElementById('breakdown').innerHTML = `
         <div><span>🪵 Материалы (${sheetsNeeded} л. ЛДСП + ХДФ)</span><b>${matCost.toFixed(0)} ₽</b></div>
-        <div><span> Кромление</span><b>${edgeCost.toFixed(0)} ₽</b></div>
+        <div><span>📏 Кромление</span><b>${edgeCost.toFixed(0)} ₽</b></div>
         <div><span>🔧 Присадка</span><b>${drillCost.toFixed(0)} ₽</b></div>
         <div><span>🔩 Фурнитура</span><b>${hardCost.toFixed(0)} ₽</b></div>
     `;
