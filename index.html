@@ -5,7 +5,8 @@
 <title>Конструктор мебели Pro</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'></text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪑</text></svg>">
 <style>
 *{box-sizing:border-box}
 body{font-family:system-ui;margin:0;display:flex;height:100vh;background:#f8fafc;color:#1e293b;font-size:13px}
@@ -58,9 +59,10 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 .hint{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;padding:6px 12px;border-radius:20px;font-size:.75rem;z-index:20;pointer-events:none}
 .hint.hidden{display:none}
 .dim-label{position:absolute;color:#1e293b;font-size:11px;font-weight:bold;background:rgba(255,255,255,0.95);padding:3px 6px;border-radius:3px;border:1px solid #2563eb;pointer-events:none;white-space:nowrap;z-index:100}
-.sketch-box{background:#f0f9ff;border:1px solid #7dd3fc;border-radius:4px;padding:8px;margin-top:8px}
-.sketch-box img{max-width:100%;max-height:150px;border:1px solid #cbd5e1;border-radius:4px;margin-top:5px}
-.sketch-analysis{background:#fef3c7;border:1px solid #f59e0b;border-radius:4px;padding:8px;margin-top:5px;font-size:.78rem}
+.sketch-box{background:#f0f9ff;border:1px solid #7dd3fc;border-radius:4px;padding:10px;margin-top:8px}
+.sketch-box canvas{max-width:100%;max-height:150px;border:1px solid #cbd5e1;border-radius:4px;margin-top:5px}
+.sketch-analysis{background:#fef3c7;border:1px solid #f59e0b;border-radius:4px;padding:10px;margin-top:8px;font-size:.78rem}
+.sketch-info{background:#dbeafe;border:1px solid #3b82f6;border-radius:4px;padding:8px;margin-top:8px;font-size:.78rem}
 .dialog-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center}
 .dialog-box{background:#fff;border-radius:8px;padding:20px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3)}
 .dialog-box h3{margin-top:0;color:#2563eb}
@@ -68,6 +70,10 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 .question-options{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 .question-options button{width:auto;padding:6px 12px;margin:0;font-size:.78rem}
 .skip-link{color:#64748b;font-size:.75rem;text-decoration:underline;cursor:pointer;margin-top:5px;display:inline-block}
+.file-input-wrapper{position:relative;overflow:hidden;display:inline-block;width:100%}
+.file-input-wrapper input[type=file]{position:absolute;left:-9999px}
+.file-input-label{display:block;padding:8px;background:#f1f5f9;border:2px dashed #cbd5e1;border-radius:4px;text-align:center;cursor:pointer;font-size:.82rem;color:#64748b}
+.file-input-label:hover{background:#e2e8f0;border-color:#94a3b8}
 </style>
 </head>
 <body>
@@ -82,17 +88,22 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 </div>
 
 <div class="fg">
-<label>🎨 Или загрузите эскиз/фото</label>
-<input type="file" id="sketchUpload" accept="image/*" onchange="loadSketch(event)" style="font-size:.78rem">
+<label>🎨 Загрузите эскиз, фото или PDF</label>
+<div class="file-input-wrapper">
+<input type="file" id="sketchUpload" accept="image/*,.pdf" onchange="loadSketch(event)">
+<label for="sketchUpload" class="file-input-label">📁 Нажмите для загрузки файла<br><small>Поддерживается: JPG, PNG, PDF</small></label>
+</div>
 <div id="sketchPreview" style="display:none" class="sketch-box">
-<img id="sketchImg">
-<button class="success" onclick="analyzeSketch()" style="margin-top:5px">🔍 Анализировать эскиз</button>
+<canvas id="sketchCanvas"></canvas>
+<div id="sketchFileInfo" style="font-size:.75rem;color:#64748b;margin-top:5px"></div>
+<button class="success" onclick="analyzeSketch()" style="margin-top:8px">🔍 Проанализировать и собрать</button>
 <div id="sketchAnalysis" style="display:none" class="sketch-analysis"></div>
+<div id="sketchInfo" style="display:none" class="sketch-info"></div>
 </div>
 </div>
 
 <div class="fg">
-<label> Или выберите шаблон</label>
+<label>📋 Или выберите шаблон</label>
 <select id="template" onchange="loadTemplate()">
 <option value="">— Выберите —</option>
 <option value="simple-table">🍽️ Стол</option>
@@ -143,12 +154,12 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 </div>
 
 <button class="sec" onclick="exportCSV()">📥 CSV</button>
-<button class="danger" onclick="clearAll()">️ Очистить</button>
+<button class="danger" onclick="clearAll()">🗑️ Очистить</button>
 </div>
 
 <div class="main">
 <div id="cv">
-<div class="hint" id="hint"> Кликните по детали в 3D для редактирования</div>
+<div class="hint" id="hint">💡 Кликните по детали в 3D для редактирования</div>
 <div class="selected-info hidden" id="selectedInfo"></div>
 <div class="edit-panel hidden" id="editPanel">
 <h4>✏️ Редактирование: <span id="editName"></span></h4>
@@ -187,7 +198,7 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 </div>
 <div class="view-toggle">
 <button onclick="toggleView('assembled')">🔧 Собрано</button>
-<button onclick="toggleView('exploded')"> Разобрано</button>
+<button onclick="toggleView('exploded')">💥 Разобрано</button>
 <button onclick="toggleView('dimensions')">📐 Размеры</button>
 </div>
 </div>
@@ -213,7 +224,7 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 </div>
 
 <div id="price" class="tc">
-<h2>💰 Смета</h2>
+<h2> Смета</h2>
 <div id="breakdown"></div>
 <div style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;padding:12px;border-radius:6px;margin-top:10px;text-align:center">
 <div>СЕБЕСТОИМОСТЬ</div>
@@ -237,6 +248,9 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 </div>
 
 <script>
+// Инициализация PDF.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
 const PRICES = {
     "ЛДСП 16мм (лист 2800×2070)": 2100,
     "ЛДСП 18мм (лист 2800×2070)": 2500,
@@ -270,6 +284,7 @@ let raycaster = new THREE.Raycaster();
 let mouse = new THREE.Vector2();
 let currentQuestions = [];
 let currentAnalysis = null;
+let currentSketchData = null;
 
 function init3D() {
     const c = document.getElementById('cv');
@@ -354,28 +369,168 @@ function updateDimLabels() {
     });
 }
 
-// ========== ЗАГРУЗКА ЭСКИЗА ==========
-function loadSketch(event) {
+// ========== ЗАГРУЗКА И АНАЛИЗ ЭСКИЗОВ ==========
+async function loadSketch(event) {
     const file = event.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        document.getElementById('sketchImg').src = e.target.result;
+    
+    const fileInfo = document.getElementById('sketchFileInfo');
+    fileInfo.textContent = `📄 ${file.name} (${(file.size/1024).toFixed(1)} КБ)`;
+    
+    if (file.type === 'application/pdf') {
+        // Обработка PDF
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+        const page = await pdf.getPage(1);
+        
+        const canvas = document.getElementById('sketchCanvas');
+        const context = canvas.getContext('2d');
+        const viewport = page.getViewport({scale: 0.5});
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        
+        await page.render({canvasContext: context, viewport: viewport}).promise;
+        
         document.getElementById('sketchPreview').style.display = 'block';
         document.getElementById('sketchAnalysis').style.display = 'none';
-    };
-    reader.readAsDataURL(file);
+        document.getElementById('sketchInfo').style.display = 'block';
+        document.getElementById('sketchInfo').innerHTML = '<b>📄 PDF загружен</b><br>Показана первая страница. Нажмите "Проанализировать" для распознавания.';
+        
+        currentSketchData = { type: 'pdf', canvas: canvas };
+    } else if (file.type.startsWith('image/')) {
+        // Обработка изображения
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.getElementById('sketchCanvas');
+                const ctx = canvas.getContext('2d');
+                const maxWidth = 400;
+                const scale = Math.min(1, maxWidth / img.width);
+                canvas.width = img.width * scale;
+                canvas.height = img.height * scale;
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                
+                document.getElementById('sketchPreview').style.display = 'block';
+                document.getElementById('sketchAnalysis').style.display = 'none';
+                document.getElementById('sketchInfo').style.display = 'block';
+                document.getElementById('sketchInfo').innerHTML = '<b>🖼️ Изображение загружено</b><br>Нажмите "Проанализировать" для распознавания формы и размеров.';
+                
+                currentSketchData = { type: 'image', canvas: canvas, img: img };
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
 }
 
 function analyzeSketch() {
+    if (!currentSketchData) {
+        alert('Сначала загрузите файл');
+        return;
+    }
+    
     const analysisDiv = document.getElementById('sketchAnalysis');
     analysisDiv.style.display = 'block';
-    analysisDiv.innerHTML = '<b>🔍 Анализ эскиза:</b><br>⏳ Распознаю компоненты...';
+    analysisDiv.innerHTML = '<b>🔍 Анализ эскиза:</b><br>⏳ Распознаю форму и размеры...';
+    
+    const canvas = currentSketchData.canvas;
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    
+    // Анализ изображения
+    let minX = canvas.width, maxX = 0, minY = canvas.height, maxY = 0;
+    let pixelCount = 0;
+    
+    // Находим границы объекта (не белые/прозрачные пиксели)
+    for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+            const idx = (y * canvas.width + x) * 4;
+            const r = data[idx], g = data[idx+1], b = data[idx+2], a = data[idx+3];
+            // Если пиксель не белый и не прозрачный
+            if (!(r > 240 && g > 240 && b > 240 && a > 128)) {
+                minX = Math.min(minX, x);
+                maxX = Math.max(maxX, x);
+                minY = Math.min(minY, y);
+                maxY = Math.max(maxY, y);
+                pixelCount++;
+            }
+        }
+    }
+    
+    const width = maxX - minX;
+    const height = maxY - minY;
+    const aspectRatio = width / height;
+    
+    // Определяем тип мебели по пропорциям
+    let detectedType = 'стол';
+    let estimatedWidth = 1200;
+    let estimatedDepth = 600;
+    let estimatedHeight = 750;
+    
+    if (aspectRatio > 1.5) {
+        // Широкий объект - вероятно стол или кровать
+        detectedType = 'стол';
+        estimatedWidth = Math.round(1200 * (width / 300));
+        estimatedDepth = Math.round(600 * (height / 200));
+    } else if (aspectRatio < 0.7) {
+        // Высокий объект - шкаф
+        detectedType = 'шкаф';
+        estimatedWidth = Math.round(600 * (width / 200));
+        estimatedDepth = Math.round(400 * (height / 300));
+        estimatedHeight = Math.round(2000 * (height / 300));
+    } else {
+        // Квадратный - стул или тумба
+        detectedType = 'стул';
+        estimatedWidth = Math.round(450 * (width / 150));
+        estimatedDepth = Math.round(400 * (height / 150));
+        estimatedHeight = 450;
+    }
+    
+    // Определяем количество деталей по цветам
+    const colors = {};
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i+1], b = data[i+2];
+        const colorKey = `${Math.floor(r/50)*50},${Math.floor(g/50)*50},${Math.floor(b/50)*50}`;
+        colors[colorKey] = (colors[colorKey] || 0) + 1;
+    }
+    
+    const uniqueColors = Object.keys(colors).length;
+    const estimatedParts = Math.max(3, Math.min(10, Math.floor(uniqueColors / 2)));
+    
     setTimeout(() => {
-        analysisDiv.innerHTML = '<b>🔍 Анализ эскиза:</b><br>✅ Распознано: прямоугольная конструкция<br>📐 Размеры: 1200×600×800 мм<br>🧩 Компоненты: столешница + 4 опоры<br>💡 Уточните размеры в поле описания';
-        document.getElementById('aiDescription').value = 'Стол 1200x600 глубина 600 высота 800';
-        setTimeout(() => startAIGeneration(), 1500);
-    }, 1200);
+        analysisDiv.innerHTML = `
+            <b>🔍 Результаты анализа:</b><br>
+            📐 Размеры изображения: ${width}×${height} px<br>
+            📊 Пропорции: ${aspectRatio.toFixed(2)} (ширина/высота)<br>
+            🎨 Найдено цветов: ${uniqueColors}<br>
+            🔮 Предполагаемый тип: <b>${detectedType}</b><br>
+            📏 Примерные размеры: ${estimatedWidth}×${estimatedDepth}×${estimatedHeight} мм<br>
+             Примерное количество деталей: ${estimatedParts}
+        `;
+        
+        document.getElementById('sketchInfo').innerHTML = `
+            <b> Рекомендация:</b><br>
+            Система определила: <b>${detectedType}</b><br>
+            Предлагаемые размеры: <b>${estimatedWidth}×${estimatedDepth}×${estimatedHeight} мм</b><br>
+            <small>Уточните размеры в поле описания при необходимости</small>
+        `;
+        
+        // Автозаполнение описания
+        if (detectedType === 'стол') {
+            document.getElementById('aiDescription').value = `Стол ${estimatedWidth}x${estimatedDepth} глубина ${estimatedDepth} высота ${estimatedHeight} с 4 ножками`;
+        } else if (detectedType === 'шкаф') {
+            document.getElementById('aiDescription').value = `Шкаф ${estimatedWidth}x${estimatedDepth} высота ${estimatedHeight} с 3 полками`;
+        } else if (detectedType === 'стул') {
+            document.getElementById('aiDescription').value = `Стул ${estimatedWidth}x${estimatedDepth} высота ${estimatedHeight} со спинкой`;
+        }
+        
+        // Через 2 секунды генерируем
+        setTimeout(() => {
+            startAIGeneration();
+        }, 2000);
+    }, 1500);
 }
 
 // ========== AI ПАРСЕР С ВОПРОСАМИ ==========
@@ -949,7 +1104,7 @@ function calcTotal() {
     drillCost = currentParts.filter(p => p.mat && p.mat.includes('ЛДСП')).length * 4 * PRICES["Присадка под конфирмат"];
     currentHardware.forEach(h => hardCost += (PRICES[h.n] || 0) * h.q);
     const total = matCost + edgeCost + hardCost + drillCost;
-    document.getElementById('breakdown').innerHTML = `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0"><span>🪵 Материалы (${sheetsNeeded} л.)</span><b>${matCost.toFixed(0)} ₽</b></div><div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0"><span>📏 Кромление</span><b>${edgeCost.toFixed(0)} ₽</b></div><div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0"><span>🔧 Присадка</span><b>${drillCost.toFixed(0)} ₽</b></div><div style="display:flex;justify-content:space-between;padding:4px 0"><span>🔩 Фурнитура</span><b>${hardCost.toFixed(0)} ₽</b></div>`;
+    document.getElementById('breakdown').innerHTML = `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0"><span> Материалы (${sheetsNeeded} л.)</span><b>${matCost.toFixed(0)} ₽</b></div><div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0"><span>📏 Кромление</span><b>${edgeCost.toFixed(0)} ₽</b></div><div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0"><span>🔧 Присадка</span><b>${drillCost.toFixed(0)} ₽</b></div><div style="display:flex;justify-content:space-between;padding:4px 0"><span>🔩 Фурнитура</span><b>${hardCost.toFixed(0)} ₽</b></div>`;
     document.getElementById('totalVal').textContent = total.toFixed(0) + ' ₽';
     document.getElementById('retailVal').textContent = (total * 1.8).toFixed(0) + ' ₽';
 }
