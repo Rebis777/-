@@ -2,9 +2,10 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Конструктор мебели Pro</title>
+<title>Конструктор мебели Pro — 3D Редактор</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪑</text></svg>">
 <style>
@@ -27,6 +28,7 @@ button.danger{background:#ef4444}
 button.success{background:#10b981}
 button.warn{background:#f59e0b}
 button.small{width:auto;padding:4px 10px;font-size:.75rem;margin:0}
+button.active{background:#10b981 !important}
 #cv{flex:1;background:#e2e8f0;border-radius:6px;min-height:300px;position:relative}
 .view-toggle{position:absolute;top:8px;right:8px;z-index:10;display:flex;gap:4px;flex-wrap:wrap}
 .view-toggle button{width:auto;padding:5px 10px;font-size:.72rem;margin:0}
@@ -81,6 +83,8 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 .module-card .module-info{font-size:.75rem;color:#64748b;margin-bottom:8px}
 .module-card .module-actions{display:flex;gap:5px}
 .module-card .module-actions button{flex:1}
+.transform-controls{position:absolute;top:10px;left:10px;z-index:20;display:flex;gap:4px}
+.transform-controls button{width:auto;padding:6px 12px;font-size:.75rem;margin:0}
 </style>
 </head>
 <body>
@@ -116,8 +120,8 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 <label>📋 Или выберите шаблон</label>
 <select id="template" onchange="loadTemplate()">
 <option value="">— Выберите —</option>
-<option value="simple-table">🍽️ Стол</option>
-<option value="chair"> Стул</option>
+<option value="simple-table">️ Стол</option>
+<option value="chair">🪑 Стул</option>
 <option value="cabinet">🗄️ Шкаф/Стеллаж</option>
 </select>
 </div>
@@ -143,13 +147,18 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 </div>
 
 <button class="sec" onclick="exportCSV()">📥 CSV</button>
-<button class="danger" onclick="clearAll()">🗑️ Очистить</button>
+<button class="danger" onclick="clearAll()">️ Очистить</button>
 </div>
 
 <div class="main">
 <div id="cv">
 <div class="hint" id="hint">💡 Кликните по детали в 3D для редактирования</div>
 <div class="selected-info hidden" id="selectedInfo"></div>
+<div class="transform-controls hidden" id="transformControls">
+<button class="sec" id="btnTranslate" onclick="setTransformMode('translate')">↔️ Перемещение</button>
+<button class="sec" id="btnRotate" onclick="setTransformMode('rotate')">🔄 Вращение</button>
+<button class="sec" onclick="detachTransform()">✕ Открепить</button>
+</div>
 <div class="edit-panel hidden" id="editPanel">
 <h4>✏️ Редактирование: <span id="editName"></span></h4>
 <div id="editModeIndicator" style="font-size:.75rem;color:#64748b;margin-bottom:8px"></div>
@@ -164,10 +173,12 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 <div><label>Позиция Z</label><input type="number" id="editZ"></div>
 </div>
 <div class="row">
-<div><label>Поворот °</label><input type="number" id="editRot" step="15"></div>
-<div><label>Масштаб</label><input type="number" id="editScale" step="0.1" value="1.0" min="0.1" max="3.0"></div>
+<div><label>Поворот X°</label><input type="number" id="editRotX" step="15" value="0"></div>
+<div><label>Поворот Y°</label><input type="number" id="editRotY" step="15" value="0"></div>
+<div><label>Поворот Z°</label><input type="number" id="editRotZ" step="15" value="0"></div>
 </div>
 <div class="row">
+<div><label>Масштаб</label><input type="number" id="editScale" step="0.1" value="1.0" min="0.1" max="3.0"></div>
 <div><label>Цвет</label>
 <select id="editColor">
 <option value="0xd4a373">Дерево светлое</option>
@@ -188,7 +199,7 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 </div>
 <div class="view-toggle">
 <button onclick="toggleView('assembled')">🔧 Собрано</button>
-<button onclick="toggleView('exploded')">💥 Разобрано</button>
+<button onclick="toggleView('exploded')"> Разобрано</button>
 <button onclick="toggleView('dimensions')">📐 Размеры</button>
 </div>
 </div>
@@ -226,7 +237,7 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 
 <div id="questionDialog" style="display:none" class="dialog-overlay">
 <div class="dialog-box">
-<h3> Уточняющие вопросы</h3>
+<h3>🤔 Уточняющие вопросы</h3>
 <p style="font-size:.82rem;color:#64748b;margin-bottom:15px">Ответьте на вопросы (можно пропустить — будет значение по умолчанию):</p>
 <div id="questionsList"></div>
 <div style="display:flex;gap:8px;margin-top:15px">
@@ -259,7 +270,7 @@ const PRICES = {
     "Колёсико мебельное": 85
 };
 
-let scene, camera, renderer, meshGroup, controls;
+let scene, camera, renderer, meshGroup, controls, transformControl;
 let components = [];
 let blocks = [];
 let modules = JSON.parse(localStorage.getItem('furniture_modules') || '[]');
@@ -274,6 +285,7 @@ let mouse = new THREE.Vector2();
 let currentQuestions = [];
 let currentAnalysis = null;
 let currentSketchData = null;
+let currentTransformMode = 'translate';
 
 function init3D() {
     const c = document.getElementById('cv');
@@ -285,10 +297,25 @@ function init3D() {
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(c.clientWidth, c.clientHeight);
     c.appendChild(renderer.domElement);
+    
     controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.target.set(0, 800, 0);
+    
+    // TransformControls для перетаскивания и вращения
+    transformControl = new THREE.TransformControls(camera, renderer.domElement);
+    transformControl.setSize(0.75);
+    transformControl.addEventListener('dragging-changed', function(event) {
+        controls.enabled = !event.value;
+    });
+    transformControl.addEventListener('change', function() {
+        if (selectedMesh && selectedComponentIdx >= 0) {
+            updateComponentFromTransform();
+        }
+    });
+    scene.add(transformControl);
+    
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const d = new THREE.DirectionalLight(0xffffff, 0.8);
     d.position.set(1000, 2000, 1000);
@@ -302,10 +329,12 @@ function init3D() {
     window.addEventListener('resize', () => { camera.aspect = c.clientWidth / c.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(c.clientWidth, c.clientHeight); });
 }
 
-function addBox3D(x, y, z, sx, sy, sz, col, rotY, compIdx) {
+function addBox3D(x, y, z, sx, sy, sz, col, rotX, rotY, rotZ, compIdx) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), new THREE.MeshStandardMaterial({ color: col, roughness: 0.8 }));
     m.position.set(x, y, z);
+    if (rotX) m.rotation.x = rotX * Math.PI / 180;
     if (rotY) m.rotation.y = rotY * Math.PI / 180;
+    if (rotZ) m.rotation.z = rotZ * Math.PI / 180;
     m.userData.compIdx = compIdx;
     meshGroup.add(m);
     m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color: 0x5c4033 })));
@@ -356,6 +385,53 @@ function updateDimLabels() {
         item.label.style.left = (x - item.label.offsetWidth / 2) + 'px';
         item.label.style.top = (y - item.label.offsetHeight / 2) + 'px';
     });
+}
+
+// ========== TRANSFORM CONTROLS ==========
+function setTransformMode(mode) {
+    currentTransformMode = mode;
+    transformControl.setMode(mode);
+    document.getElementById('btnTranslate').classList.toggle('active', mode === 'translate');
+    document.getElementById('btnRotate').classList.toggle('active', mode === 'rotate');
+}
+
+function attachTransformToMesh(mesh) {
+    transformControl.attach(mesh);
+    setTransformMode(currentTransformMode);
+    document.getElementById('transformControls').classList.remove('hidden');
+}
+
+function detachTransform() {
+    transformControl.detach();
+    document.getElementById('transformControls').classList.add('hidden');
+}
+
+function updateComponentFromTransform() {
+    if (!selectedMesh || selectedComponentIdx < 0) return;
+    const comp = components[selectedComponentIdx];
+    if (!comp) return;
+    
+    // Обновляем позицию
+    comp.x = selectedMesh.position.x;
+    comp.y = selectedMesh.position.y - comp.th / 2;
+    comp.z = selectedMesh.position.z;
+    
+    // Обновляем повороты
+    comp.rotX = Math.round(selectedMesh.rotation.x * 180 / Math.PI);
+    comp.rotY = Math.round(selectedMesh.rotation.y * 180 / Math.PI);
+    comp.rotZ = Math.round(selectedMesh.rotation.z * 180 / Math.PI);
+    
+    // Обновляем поля в панели
+    document.getElementById('editX').value = Math.round(comp.x);
+    document.getElementById('editY').value = Math.round(comp.y);
+    document.getElementById('editZ').value = Math.round(comp.z);
+    document.getElementById('editRotX').value = comp.rotX;
+    document.getElementById('editRotY').value = comp.rotY;
+    document.getElementById('editRotZ').value = comp.rotZ;
+    
+    // Обновляем информацию
+    const info = document.getElementById('selectedInfo');
+    info.innerHTML = `<b>🔄 Перемещение:</b> ${comp.name} <span style="color:#10b981">(${Math.round(comp.x)}, ${Math.round(comp.y)}, ${Math.round(comp.z)})</span>`;
 }
 
 // ========== МОДУЛИ ==========
@@ -424,7 +500,7 @@ function renderModulesList() {
     }
     list.innerHTML = modules.map(m => {
         const date = new Date(m.createdAt).toLocaleDateString('ru-RU');
-        return `<div class="module-card"><div class="module-header"><span class="module-name">📦 ${m.name}</span><span class="badge badge-module">${m.componentCount} дет.</span></div><div class="module-info">Создан: ${date}</div><div class="module-actions"><button class="success small" onclick="addModuleToProject(${m.id})">➕ Добавить</button><button class="danger small" onclick="deleteModule(${m.id})">🗑️</button></div></div>`;
+        return `<div class="module-card"><div class="module-header"><span class="module-name">📦 ${m.name}</span><span class="badge badge-module">${m.componentCount} дет.</span></div><div class="module-info">Создан: ${date}</div><div class="module-actions"><button class="success small" onclick="addModuleToProject(${m.id})">➕ Добавить</button><button class="danger small" onclick="deleteModule(${m.id})">️</button></div></div>`;
     }).join('');
 }
 
@@ -481,13 +557,12 @@ function analyzeSketch() {
     if (!currentSketchData) { alert('Сначала загрузите файл'); return; }
     const analysisDiv = document.getElementById('sketchAnalysis');
     analysisDiv.style.display = 'block';
-    analysisDiv.innerHTML = '<b> Анализ эскиза:</b><br> Распознаю форму и размеры...';
+    analysisDiv.innerHTML = '<b>🔍 Анализ эскиза:</b><br>⏳ Распознаю форму и размеры...';
     const canvas = currentSketchData.canvas;
     const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
     let minX = canvas.width, maxX = 0, minY = canvas.height, maxY = 0;
-    let pixelCount = 0;
     for (let y = 0; y < canvas.height; y++) {
         for (let x = 0; x < canvas.width; x++) {
             const idx = (y * canvas.width + x) * 4;
@@ -495,7 +570,6 @@ function analyzeSketch() {
             if (!(r > 240 && g > 240 && b > 240 && a > 128)) {
                 minX = Math.min(minX, x); maxX = Math.max(maxX, x);
                 minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-                pixelCount++;
             }
         }
     }
@@ -506,16 +580,9 @@ function analyzeSketch() {
     if (aspectRatio > 1.5) { detectedType = 'стол'; estimatedWidth = Math.round(1200 * (width / 300)); estimatedDepth = Math.round(600 * (height / 200)); }
     else if (aspectRatio < 0.7) { detectedType = 'шкаф'; estimatedWidth = Math.round(600 * (width / 200)); estimatedDepth = Math.round(400 * (height / 300)); estimatedHeight = Math.round(2000 * (height / 300)); }
     else { detectedType = 'стул'; estimatedWidth = Math.round(450 * (width / 150)); estimatedDepth = Math.round(400 * (height / 150)); estimatedHeight = 450; }
-    const colors = {};
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i+1], b = data[i+2];
-        const colorKey = `${Math.floor(r/50)*50},${Math.floor(g/50)*50},${Math.floor(b/50)*50}`;
-        colors[colorKey] = (colors[colorKey] || 0) + 1;
-    }
-    const uniqueColors = Object.keys(colors).length;
     setTimeout(() => {
-        analysisDiv.innerHTML = `<b>🔍 Результаты анализа:</b><br>📐 Размеры изображения: ${width}×${height} px<br> Пропорции: ${aspectRatio.toFixed(2)}<br>🎨 Найдено цветов: ${uniqueColors}<br>🔮 Тип: <b>${detectedType}</b><br>📏 Примерные размеры: ${estimatedWidth}×${estimatedDepth}×${estimatedHeight} мм`;
-        document.getElementById('sketchInfo').innerHTML = `<b>💡 Рекомендация:</b><br>Определено: <b>${detectedType}</b><br>Размеры: <b>${estimatedWidth}×${estimatedDepth}×${estimatedHeight} мм</b><br><small>Уточните при необходимости</small>`;
+        analysisDiv.innerHTML = `<b>🔍 Результаты анализа:</b><br>📐 Размеры: ${width}×${height} px<br>📊 Пропорции: ${aspectRatio.toFixed(2)}<br>🔮 Тип: <b>${detectedType}</b><br>📏 Размеры: ${estimatedWidth}×${estimatedDepth}×${estimatedHeight} мм`;
+        document.getElementById('sketchInfo').innerHTML = `<b>💡 Рекомендация:</b><br>Определено: <b>${detectedType}</b><br>Размеры: <b>${estimatedWidth}×${estimatedDepth}×${estimatedHeight} мм</b>`;
         if (detectedType === 'стол') document.getElementById('aiDescription').value = `Стол ${estimatedWidth}x${estimatedDepth} глубина ${estimatedDepth} высота ${estimatedHeight} с 4 ножками`;
         else if (detectedType === 'шкаф') document.getElementById('aiDescription').value = `Шкаф ${estimatedWidth}x${estimatedDepth} высота ${estimatedHeight} с 3 полками`;
         else if (detectedType === 'стул') document.getElementById('aiDescription').value = `Стул ${estimatedWidth}x${estimatedDepth} высота ${estimatedHeight} со спинкой`;
@@ -527,36 +594,22 @@ function analyzeSketch() {
 function analyzeRequest(text) {
     const t = text.toLowerCase();
     const analysis = { type: null, dims: [], widths: [], heights: [], depths: [], shelfHeights: [], counts: {}, has: {}, missing: [] };
-    
-    // Размеры в формате "числоxчисло"
     const dimPattern = /(\d{2,4})\s*[×xх*]\s*(\d{2,4})/g;
     let match;
     while ((match = dimPattern.exec(t)) !== null) analysis.dims.push({ a: parseInt(match[1]), b: parseInt(match[2]) });
-    
-    // Ширина
     const widthPattern = /ширин[ауой]\s*(\d{2,4})/g;
     while ((match = widthPattern.exec(t)) !== null) analysis.widths.push(parseInt(match[1]));
-    
-    // Высота
     const heightPattern = /высот[аеой]\s*(\d{2,4})/g;
     while ((match = heightPattern.exec(t)) !== null) analysis.heights.push(parseInt(match[1]));
-    
-    // Глубина
     const depthPattern = /глубин[аеой]\s*(\d{2,4})/g;
     while ((match = depthPattern.exec(t)) !== null) analysis.depths.push(parseInt(match[1]));
-    
-    // Расстояния между полками (список чисел)
     const shelfDistPattern = /расстояни[ея]\s*(?:между\s*)?полк[аи]\s*((?:\d{2,4}\s*)+)/g;
     while ((match = shelfDistPattern.exec(t)) !== null) {
         const numbers = match[1].trim().split(/\s+/).map(n => parseInt(n)).filter(n => !isNaN(n) && n > 0);
         analysis.shelfHeights = numbers;
     }
-    
-    // Количества
     const countPattern = /(\d+)\s*(ящик|полк|отделен|труб|ножк|опор|фасад|дверц)/g;
     while ((match = countPattern.exec(t)) !== null) analysis.counts[match[2]] = parseInt(match[1]);
-    
-    // Определение типа (с учётом опечаток)
     if (t.includes('стол') || t.includes('столешниц')) analysis.type = 'table';
     else if (t.includes('стул') || t.includes('кресло')) analysis.type = 'chair';
     else if (t.includes('шкаф') || t.includes('купе')) analysis.type = 'cabinet';
@@ -566,7 +619,6 @@ function analyzeRequest(text) {
     else if (t.includes('прилавк') || t.includes('ресепшн') || t.includes('остров')) analysis.type = 'counter';
     else if (t.includes('тумб') || t.includes('комод')) analysis.type = 'cabinet';
     else analysis.type = 'table';
-    
     analysis.has.drawers = t.includes('ящик');
     analysis.has.shelves = t.includes('полк');
     analysis.has.facades = t.includes('фасад') || t.includes('дверц') || t.includes('закрыт');
@@ -574,14 +626,12 @@ function analyzeRequest(text) {
     analysis.has.wheels = t.includes('колёс') || t.includes('колес');
     analysis.has.rod = t.includes('штанг') || t.includes('вешал');
     analysis.has.lift = t.includes('подъёмн') || t.includes('откидн');
-    
     if (analysis.dims.length === 0 && analysis.widths.length === 0) analysis.missing.push('dims');
     if (analysis.depths.length === 0) analysis.missing.push('depth');
     if (analysis.heights.length === 0 && analysis.type !== 'shelf') analysis.missing.push('height');
     if (analysis.type === 'cabinet' && !analysis.counts['полк'] && !analysis.has.shelves && analysis.shelfHeights.length === 0) analysis.missing.push('shelves');
     if (analysis.has.drawers && !analysis.counts['ящик']) analysis.missing.push('drawers');
     if (analysis.type === 'table' && !analysis.counts['ножк']) analysis.missing.push('legs');
-    
     analysis.missing = analysis.missing.slice(0, 5);
     return analysis;
 }
@@ -667,11 +717,7 @@ function buildFromAnalysis(analysis, answers) {
     let width = analysis.widths[0] || 1200;
     let depth = analysis.depths[0] || 600;
     let height = analysis.heights[0] || 750;
-    
-    if (analysis.dims.length > 0) {
-        width = analysis.dims[0].a;
-        depth = analysis.dims[0].b;
-    }
+    if (analysis.dims.length > 0) { width = analysis.dims[0].a; depth = analysis.dims[0].b; }
     if (answers.dims) {
         const match = answers.dims.match(/(\d{2,4})\s*[×xх*]\s*(\d{2,4})/);
         if (match) { width = parseInt(match[1]); depth = parseInt(match[2]); }
@@ -679,63 +725,59 @@ function buildFromAnalysis(analysis, answers) {
     if (answers.width) width = parseInt(answers.width) || width;
     if (answers.depth) depth = parseInt(answers.depth) || depth;
     if (answers.height) height = parseInt(answers.height) || height;
-    
     const drawerCount = analysis.counts['ящик'] || (answers.drawers ? parseInt(answers.drawers) : 0);
     const shelfCount = analysis.counts['полк'] || (answers.shelves ? parseInt(answers.shelves) : 0);
     const legCount = analysis.counts['ножк'] || (answers.legs ? parseInt(answers.legs) : 4);
     const shelfHeights = analysis.shelfHeights.length > 0 ? analysis.shelfHeights : [];
-    
     if (analysis.type === 'table' || analysis.type === 'bench' || analysis.type === 'counter') {
-        comps.push({ type: 'slab', name: 'Столешница', l: width, w: depth, th: 20, x: 0, y: height - 20, z: 0, color: '0xd4a373', note: '', rotY: 0 });
+        comps.push({ type: 'slab', name: 'Столешница', l: width, w: depth, th: 20, x: 0, y: height - 20, z: 0, color: '0xd4a373', note: '', rotX: 0, rotY: 0, rotZ: 0 });
         const legPositions = [[-width/2+50,-depth/2+50],[width/2-50,-depth/2+50],[-width/2+50,depth/2-50],[width/2-50,depth/2-50]];
         for (let i = 0; i < Math.min(legCount, 4); i++) {
-            comps.push({ type: 'leg', name: `Опора ${i+1}`, l: 50, w: 50, th: height - 20, x: legPositions[i][0], y: 0, z: legPositions[i][1], color: '0x94a3b8', note: '', rotY: 0 });
+            comps.push({ type: 'leg', name: `Опора ${i+1}`, l: 50, w: 50, th: height - 20, x: legPositions[i][0], y: 0, z: legPositions[i][1], color: '0x94a3b8', note: '', rotX: 0, rotY: 0, rotZ: 0 });
         }
     } else if (analysis.type === 'chair') {
-        comps.push({ type: 'slab', name: 'Сиденье', l: width, w: depth, th: 20, x: 0, y: height - 20, z: 0, color: '0xd4a373', note: '', rotY: 0 });
+        comps.push({ type: 'slab', name: 'Сиденье', l: width, w: depth, th: 20, x: 0, y: height - 20, z: 0, color: '0xd4a373', note: '', rotX: 0, rotY: 0, rotZ: 0 });
         const legPositions = [[-width/2+30,-depth/2+30],[width/2-30,-depth/2+30],[-width/2+30,depth/2-30],[width/2-30,depth/2-30]];
         legPositions.forEach((pos, i) => {
-            comps.push({ type: 'leg', name: `Ножка ${i+1}`, l: 40, w: 40, th: height - 20, x: pos[0], y: 0, z: pos[1], color: '0x94a3b8', note: '', rotY: 0 });
+            comps.push({ type: 'leg', name: `Ножка ${i+1}`, l: 40, w: 40, th: height - 20, x: pos[0], y: 0, z: pos[1], color: '0x94a3b8', note: '', rotX: 0, rotY: 0, rotZ: 0 });
         });
-        if (analysis.has.facades) comps.push({ type: 'slab', name: 'Спинка', l: 20, w: depth - 40, th: 400, x: 0, y: height, z: -depth/2 + 20, color: '0xc49a6c', note: '', rotY: 0 });
+        if (analysis.has.facades) comps.push({ type: 'slab', name: 'Спинка', l: 20, w: depth - 40, th: 400, x: 0, y: height, z: -depth/2 + 20, color: '0xc49a6c', note: '', rotX: 0, rotY: 0, rotZ: 0 });
     } else if (analysis.type === 'cabinet') {
-        comps.push({ type: 'slab', name: 'Боковина левая', l: 18, w: depth, th: height, x: -width/2, y: 0, z: 0, color: '0xc49a6c', note: '', rotY: 0 });
-        comps.push({ type: 'slab', name: 'Боковина правая', l: 18, w: depth, th: height, x: width/2, y: 0, z: 0, color: '0xc49a6c', note: '', rotY: 0 });
-        comps.push({ type: 'slab', name: 'Крышка', l: width, w: depth, th: 18, x: 0, y: height - 18, z: 0, color: '0xc49a6c', note: '', rotY: 0 });
-        comps.push({ type: 'slab', name: 'Дно', l: width, w: depth, th: 18, x: 0, y: 0, z: 0, color: '0xc49a6c', note: '', rotY: 0 });
-        
+        comps.push({ type: 'slab', name: 'Боковина левая', l: 18, w: depth, th: height, x: -width/2, y: 0, z: 0, color: '0xc49a6c', note: '', rotX: 0, rotY: 0, rotZ: 0 });
+        comps.push({ type: 'slab', name: 'Боковина правая', l: 18, w: depth, th: height, x: width/2, y: 0, z: 0, color: '0xc49a6c', note: '', rotX: 0, rotY: 0, rotZ: 0 });
+        comps.push({ type: 'slab', name: 'Крышка', l: width, w: depth, th: 18, x: 0, y: height - 18, z: 0, color: '0xc49a6c', note: '', rotX: 0, rotY: 0, rotZ: 0 });
+        comps.push({ type: 'slab', name: 'Дно', l: width, w: depth, th: 18, x: 0, y: 0, z: 0, color: '0xc49a6c', note: '', rotX: 0, rotY: 0, rotZ: 0 });
         if (shelfHeights.length > 0) {
             let currentY = 0;
             shelfHeights.forEach((dist, i) => {
                 currentY += dist;
                 if (currentY < height - 30) {
-                    comps.push({ type: 'shelf', name: `Полка ${i+1} (на высоте ${currentY}мм)`, l: width - 36, w: depth - 20, th: 18, x: 0, y: currentY, z: 0, color: '0xd4a373', note: `Высота от дна: ${currentY} мм`, rotY: 0 });
+                    comps.push({ type: 'shelf', name: `Полка ${i+1} (на высоте ${currentY}мм)`, l: width - 36, w: depth - 20, th: 18, x: 0, y: currentY, z: 0, color: '0xd4a373', note: `Высота от дна: ${currentY} мм`, rotX: 0, rotY: 0, rotZ: 0 });
                 }
             });
         } else if (shelfCount > 0) {
             const shelfH = height / (shelfCount + 1);
             for (let i = 1; i <= shelfCount; i++) {
-                comps.push({ type: 'shelf', name: `Полка ${i}`, l: width - 36, w: depth - 20, th: 18, x: 0, y: shelfH * i, z: 0, color: '0xd4a373', note: '', rotY: 0 });
+                comps.push({ type: 'shelf', name: `Полка ${i}`, l: width - 36, w: depth - 20, th: 18, x: 0, y: shelfH * i, z: 0, color: '0xd4a373', note: '', rotX: 0, rotY: 0, rotZ: 0 });
             }
         }
-        if (analysis.has.facades) comps.push({ type: 'facade', name: 'Фасад', l: 20, w: width - 4, th: height - 40, x: 0, y: 20, z: depth/2, color: '0x3b82f6', note: '', rotY: 0 });
+        if (analysis.has.facades) comps.push({ type: 'facade', name: 'Фасад', l: 20, w: width - 4, th: height - 40, x: 0, y: 20, z: depth/2, color: '0x3b82f6', note: '', rotX: 0, rotY: 0, rotZ: 0 });
     } else if (analysis.type === 'shelf') {
-        comps.push({ type: 'slab', name: 'Полка', l: width, w: depth, th: 20, x: 0, y: height, z: 0, color: '0xd4a373', note: '', rotY: 0 });
-        comps.push({ type: 'bracket', name: 'Кронштейн левый', l: 40, w: 40, th: 250, x: -width/2 + 50, y: height - 200, z: 0, color: '0x94a3b8', note: '', rotY: 0 });
-        comps.push({ type: 'bracket', name: 'Кронштейн правый', l: 40, w: 40, th: 250, x: width/2 - 50, y: height - 200, z: 0, color: '0x94a3b8', note: '', rotY: 0 });
+        comps.push({ type: 'slab', name: 'Полка', l: width, w: depth, th: 20, x: 0, y: height, z: 0, color: '0xd4a373', note: '', rotX: 0, rotY: 0, rotZ: 0 });
+        comps.push({ type: 'bracket', name: 'Кронштейн левый', l: 40, w: 40, th: 250, x: -width/2 + 50, y: height - 200, z: 0, color: '0x94a3b8', note: '', rotX: 0, rotY: 0, rotZ: 0 });
+        comps.push({ type: 'bracket', name: 'Кронштейн правый', l: 40, w: 40, th: 250, x: width/2 - 50, y: height - 200, z: 0, color: '0x94a3b8', note: '', rotX: 0, rotY: 0, rotZ: 0 });
     }
-    
     if (drawerCount > 0) {
         const drawerH = (height - 36) / drawerCount;
-        for (let i = 0; i < drawerCount; i++) comps.push({ type: 'drawer', name: `Ящик ${i+1}`, l: width - 36, w: depth - 36, th: drawerH - 20, x: 0, y: 18 + i * drawerH + 10, z: 0, color: '0xe2c79c', note: '', rotY: 0 });
+        for (let i = 0; i < drawerCount; i++) comps.push({ type: 'drawer', name: `Ящик ${i+1}`, l: width - 36, w: depth - 36, th: drawerH - 20, x: 0, y: 18 + i * drawerH + 10, z: 0, color: '0xe2c79c', note: '', rotX: 0, rotY: 0, rotZ: 0 });
     }
     if (analysis.has.holes) {
-        comps.push({ type: 'hole', name: 'Вырез под трубу Ø100', l: 100, w: 100, th: 18, x: -width/2, y: 70, z: 0, color: '0xef4444', note: 'Ø100', rotY: 0 });
-        comps.push({ type: 'hole', name: 'Вырез под трубу Ø100', l: 100, w: 100, th: 18, x: width/2, y: 70, z: 0, color: '0xef4444', note: 'Ø100', rotY: 0 });
+        comps.push({ type: 'hole', name: 'Вырез под трубу Ø100', l: 100, w: 100, th: 18, x: -width/2, y: 70, z: 0, color: '0xef4444', note: 'Ø100', rotX: 0, rotY: 0, rotZ: 0 });
+        comps.push({ type: 'hole', name: 'Вырез под трубу Ø100', l: 100, w: 100, th: 18, x: width/2, y: 70, z: 0, color: '0xef4444', note: 'Ø100', rotX: 0, rotY: 0, rotZ: 0 });
     }
     if (analysis.has.wheels) {
         [[-width/2+50,-depth/2+50],[width/2-50,-depth/2+50],[-width/2+50,depth/2-50],[width/2-50,depth/2-50]].forEach((pos, i) => {
-            comps.push({ type: 'wheel', name: `Колёсико ${i+1}`, l: 50, w: 50, th: 50, x: pos[0], y: 0, z: pos[1], color: '0x333333', note: '', rotY: 0 });
+            comps.push({ type: 'wheel', name: `Колёсико ${i+1}`, l: 50, w: 50, th: 50, x: pos[0], y: 0, z: pos[1], color: '0x333333', note: '', rotX: 0, rotY: 0, rotZ: 0 });
         });
     }
     return { comps };
@@ -777,7 +819,9 @@ function selectBlock(blockIdx) {
     document.getElementById('editX').value = block.offsetX;
     document.getElementById('editY').value = block.offsetY;
     document.getElementById('editZ').value = block.offsetZ;
-    document.getElementById('editRot').value = block.rotY;
+    document.getElementById('editRotX').value = 0;
+    document.getElementById('editRotY').value = block.rotY;
+    document.getElementById('editRotZ').value = 0;
     document.getElementById('editScale').value = block.scale;
     document.getElementById('editColor').value = '0x10b981';
     document.getElementById('editPanel').classList.remove('hidden');
@@ -793,7 +837,7 @@ function applyBlockEdit() {
     block.offsetX = parseFloat(document.getElementById('editX').value) || 0;
     block.offsetY = parseFloat(document.getElementById('editY').value) || 0;
     block.offsetZ = parseFloat(document.getElementById('editZ').value) || 0;
-    block.rotY = parseFloat(document.getElementById('editRot').value) || 0;
+    block.rotY = parseFloat(document.getElementById('editRotY').value) || 0;
     block.scale = parseFloat(document.getElementById('editScale').value) || 1.0;
     block.componentIndices.forEach(compIdx => {
         const comp = components[compIdx];
@@ -868,7 +912,9 @@ function selectComponent(idx) {
     document.getElementById('editX').value = comp.x;
     document.getElementById('editY').value = comp.y;
     document.getElementById('editZ').value = comp.z;
-    document.getElementById('editRot').value = comp.rotY || 0;
+    document.getElementById('editRotX').value = comp.rotX || 0;
+    document.getElementById('editRotY').value = comp.rotY || 0;
+    document.getElementById('editRotZ').value = comp.rotZ || 0;
     document.getElementById('editScale').value = 1.0;
     document.getElementById('editColor').value = comp.color;
     document.getElementById('editPanel').classList.remove('hidden');
@@ -877,6 +923,7 @@ function selectComponent(idx) {
     info.classList.remove('hidden');
     info.innerHTML = `<b>Выбрано:</b> ${comp.name} <span style="color:#64748b">(${comp.l}×${comp.w}×${comp.th})</span>`;
     renderComponentsList();
+    attachTransformToMesh(selectedMesh);
 }
 
 function deselectAll() {
@@ -888,6 +935,7 @@ function deselectAll() {
     selectedComponentIdx = -1;
     selectedBlockIdx = -1;
     selectedMesh = null;
+    detachTransform();
     document.getElementById('editPanel').classList.add('hidden');
     document.getElementById('selectedInfo').classList.add('hidden');
     document.getElementById('hint').classList.remove('hidden');
@@ -904,7 +952,9 @@ function applyEdit() {
     const newX = parseFloat(document.getElementById('editX').value);
     const newY = parseFloat(document.getElementById('editY').value);
     const newZ = parseFloat(document.getElementById('editZ').value);
-    const newRot = parseFloat(document.getElementById('editRot').value);
+    const newRotX = parseFloat(document.getElementById('editRotX').value);
+    const newRotY = parseFloat(document.getElementById('editRotY').value);
+    const newRotZ = parseFloat(document.getElementById('editRotZ').value);
     const newColor = document.getElementById('editColor').value;
     if (isNaN(newL) || isNaN(newW) || isNaN(newTh)) { alert('Проверьте размеры — должны быть числа'); return; }
     const oldL = comp.l, oldW = comp.w, oldTh = comp.th;
@@ -914,7 +964,9 @@ function applyEdit() {
     comp.x = isNaN(newX) ? 0 : newX;
     comp.y = isNaN(newY) ? 0 : newY;
     comp.z = isNaN(newZ) ? 0 : newZ;
-    comp.rotY = isNaN(newRot) ? 0 : newRot;
+    comp.rotX = isNaN(newRotX) ? 0 : newRotX;
+    comp.rotY = isNaN(newRotY) ? 0 : newRotY;
+    comp.rotZ = isNaN(newRotZ) ? 0 : newRotZ;
     comp.color = newColor;
     selectedMesh = null;
     rebuild3D();
@@ -980,30 +1032,30 @@ function loadTemplate() {
     if (!t) return;
     if (t === 'simple-table') {
         components = [
-            { type: 'slab', name: 'Столешница', l: 1200, w: 600, th: 20, x: 0, y: 730, z: 0, color: '0xd4a373', note: '', rotY: 0 },
-            { type: 'leg', name: 'Ножка 1', l: 50, w: 50, th: 730, x: -550, y: 0, z: -250, color: '0x94a3b8', note: '', rotY: 0 },
-            { type: 'leg', name: 'Ножка 2', l: 50, w: 50, th: 730, x: 550, y: 0, z: -250, color: '0x94a3b8', note: '', rotY: 0 },
-            { type: 'leg', name: 'Ножка 3', l: 50, w: 50, th: 730, x: -550, y: 0, z: 250, color: '0x94a3b8', note: '', rotY: 0 },
-            { type: 'leg', name: 'Ножка 4', l: 50, w: 50, th: 730, x: 550, y: 0, z: 250, color: '0x94a3b8', note: '', rotY: 0 }
+            { type: 'slab', name: 'Столешница', l: 1200, w: 600, th: 20, x: 0, y: 730, z: 0, color: '0xd4a373', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'leg', name: 'Ножка 1', l: 50, w: 50, th: 730, x: -550, y: 0, z: -250, color: '0x94a3b8', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'leg', name: 'Ножка 2', l: 50, w: 50, th: 730, x: 550, y: 0, z: -250, color: '0x94a3b8', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'leg', name: 'Ножка 3', l: 50, w: 50, th: 730, x: -550, y: 0, z: 250, color: '0x94a3b8', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'leg', name: 'Ножка 4', l: 50, w: 50, th: 730, x: 550, y: 0, z: 250, color: '0x94a3b8', note: '', rotX: 0, rotY: 0, rotZ: 0 }
         ];
     } else if (t === 'chair') {
         components = [
-            { type: 'slab', name: 'Сиденье', l: 450, w: 400, th: 20, x: 0, y: 430, z: 0, color: '0xd4a373', note: '', rotY: 0 },
-            { type: 'leg', name: 'Ножка 1', l: 40, w: 40, th: 430, x: -200, y: 0, z: -175, color: '0x94a3b8', note: '', rotY: 0 },
-            { type: 'leg', name: 'Ножка 2', l: 40, w: 40, th: 430, x: 200, y: 0, z: -175, color: '0x94a3b8', note: '', rotY: 0 },
-            { type: 'leg', name: 'Ножка 3', l: 40, w: 40, th: 430, x: -200, y: 0, z: 175, color: '0x94a3b8', note: '', rotY: 0 },
-            { type: 'leg', name: 'Ножка 4', l: 40, w: 40, th: 430, x: 200, y: 0, z: 175, color: '0x94a3b8', note: '', rotY: 0 },
-            { type: 'slab', name: 'Спинка', l: 20, w: 360, th: 400, x: 0, y: 450, z: -180, color: '0xc49a6c', note: '', rotY: 0 }
+            { type: 'slab', name: 'Сиденье', l: 450, w: 400, th: 20, x: 0, y: 430, z: 0, color: '0xd4a373', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'leg', name: 'Ножка 1', l: 40, w: 40, th: 430, x: -200, y: 0, z: -175, color: '0x94a3b8', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'leg', name: 'Ножка 2', l: 40, w: 40, th: 430, x: 200, y: 0, z: -175, color: '0x94a3b8', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'leg', name: 'Ножка 3', l: 40, w: 40, th: 430, x: -200, y: 0, z: 175, color: '0x94a3b8', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'leg', name: 'Ножка 4', l: 40, w: 40, th: 430, x: 200, y: 0, z: 175, color: '0x94a3b8', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'slab', name: 'Спинка', l: 20, w: 360, th: 400, x: 0, y: 450, z: -180, color: '0xc49a6c', note: '', rotX: 0, rotY: 0, rotZ: 0 }
         ];
     } else if (t === 'cabinet') {
         components = [
-            { type: 'slab', name: 'Боковина левая', l: 18, w: 600, th: 2000, x: -600, y: 0, z: 0, color: '0xc49a6c', note: '', rotY: 0 },
-            { type: 'slab', name: 'Боковина правая', l: 18, w: 600, th: 2000, x: 600, y: 0, z: 0, color: '0xc49a6c', note: '', rotY: 0 },
-            { type: 'slab', name: 'Крышка', l: 1200, w: 600, th: 18, x: 0, y: 1982, z: 0, color: '0xc49a6c', note: '', rotY: 0 },
-            { type: 'slab', name: 'Дно', l: 1200, w: 600, th: 18, x: 0, y: 0, z: 0, color: '0xc49a6c', note: '', rotY: 0 },
-            { type: 'shelf', name: 'Полка 1', l: 1164, w: 580, th: 18, x: 0, y: 500, z: 0, color: '0xd4a373', note: '', rotY: 0 },
-            { type: 'shelf', name: 'Полка 2', l: 1164, w: 580, th: 18, x: 0, y: 1000, z: 0, color: '0xd4a373', note: '', rotY: 0 },
-            { type: 'shelf', name: 'Полка 3', l: 1164, w: 580, th: 18, x: 0, y: 1500, z: 0, color: '0xd4a373', note: '', rotY: 0 }
+            { type: 'slab', name: 'Боковина левая', l: 18, w: 600, th: 2000, x: -600, y: 0, z: 0, color: '0xc49a6c', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'slab', name: 'Боковина правая', l: 18, w: 600, th: 2000, x: 600, y: 0, z: 0, color: '0xc49a6c', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'slab', name: 'Крышка', l: 1200, w: 600, th: 18, x: 0, y: 1982, z: 0, color: '0xc49a6c', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'slab', name: 'Дно', l: 1200, w: 600, th: 18, x: 0, y: 0, z: 0, color: '0xc49a6c', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'shelf', name: 'Полка 1', l: 1164, w: 580, th: 18, x: 0, y: 500, z: 0, color: '0xd4a373', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'shelf', name: 'Полка 2', l: 1164, w: 580, th: 18, x: 0, y: 1000, z: 0, color: '0xd4a373', note: '', rotX: 0, rotY: 0, rotZ: 0 },
+            { type: 'shelf', name: 'Полка 3', l: 1164, w: 580, th: 18, x: 0, y: 1500, z: 0, color: '0xd4a373', note: '', rotX: 0, rotY: 0, rotZ: 0 }
         ];
     }
     blocks = [];
@@ -1024,7 +1076,7 @@ function addComponent() {
     const z = parseInt(document.getElementById('compZ').value) || 0;
     const color = document.getElementById('compColor').value;
     const typeNames = { 'slab': 'Плита', 'leg': 'Ножка', 'drawer': 'Ящик', 'shelf': 'Полка', 'facade': 'Фасад', 'hole': 'Отверстие' };
-    components.push({ type, name: `${typeNames[type]} #${components.length + 1}`, l, w, th, x, y, z, rotY: 0, color, note: '' });
+    components.push({ type, name: `${typeNames[type]} #${components.length + 1}`, l, w, th, x, y, z, rotX: 0, rotY: 0, rotZ: 0, color, note: '' });
     renderComponentsList();
     rebuild3D();
     updateUI();
@@ -1043,7 +1095,7 @@ function removeComponent(idx) {
 
 function updateComponent(idx, field, value) {
     components[idx][field] = field === 'color' ? value : (isNaN(value) ? value : parseFloat(value));
-    if (['l','w','th','x','y','z','rotY','color'].includes(field)) {
+    if (['l','w','th','x','y','z','rotX','rotY','rotZ','color'].includes(field)) {
         rebuild3D();
         if (selectedComponentIdx === idx) setTimeout(() => selectComponent(idx), 50);
     }
@@ -1056,7 +1108,7 @@ function renderComponentsList() {
     if (components.length === 0) { list.innerHTML = '<p style="color:#64748b;font-size:.78rem">Добавьте первый компонент</p>'; return; }
     list.innerHTML = components.map((c, i) => {
         const inBlock = blocks.find(b => b.componentIndices.includes(i));
-        return `<div class="comp-item" style="${selectedComponentIdx === i ? 'border-color:#2563eb;background:#eff6ff' : ''}"><div class="comp-header"><span class="badge ${inBlock ? 'badge-block' : 'badge-custom'}">${c.type}${inBlock ? ' 📦' : ''}</span><input type="text" value="${c.name}" onchange="updateComponent(${i},'name',this.value)" style="flex:1;margin:0 8px;font-size:.78rem"><button class="danger small" onclick="removeComponent(${i})">✕</button></div><div class="row"><div><label>Длина</label><input type="number" value="${c.l}" onchange="updateComponent(${i},'l',this.value)" style="font-size:.75rem"></div><div><label>Ширина</label><input type="number" value="${c.w}" onchange="updateComponent(${i},'w',this.value)" style="font-size:.75rem"></div><div><label>Высота</label><input type="number" value="${c.th}" onchange="updateComponent(${i},'th',this.value)" style="font-size:.75rem"></div></div><div class="row"><div><label>X</label><input type="number" value="${c.x}" onchange="updateComponent(${i},'x',this.value)" style="font-size:.75rem"></div><div><label>Y</label><input type="number" value="${c.y}" onchange="updateComponent(${i},'y',this.value)" style="font-size:.75rem"></div><div><label>Z</label><input type="number" value="${c.z}" onchange="updateComponent(${i},'z',this.value)" style="font-size:.75rem"></div></div></div>`;
+        return `<div class="comp-item" style="${selectedComponentIdx === i ? 'border-color:#2563eb;background:#eff6ff' : ''}"><div class="comp-header"><span class="badge ${inBlock ? 'badge-block' : 'badge-custom'}">${c.type}${inBlock ? ' 📦' : ''}</span><input type="text" value="${c.name}" onchange="updateComponent(${i},'name',this.value)" style="flex:1;margin:0 8px;font-size:.78rem"><button class="danger small" onclick="removeComponent(${i})"></button></div><div class="row"><div><label>Длина</label><input type="number" value="${c.l}" onchange="updateComponent(${i},'l',this.value)" style="font-size:.75rem"></div><div><label>Ширина</label><input type="number" value="${c.w}" onchange="updateComponent(${i},'w',this.value)" style="font-size:.75rem"></div><div><label>Высота</label><input type="number" value="${c.th}" onchange="updateComponent(${i},'th',this.value)" style="font-size:.75rem"></div></div><div class="row"><div><label>X</label><input type="number" value="${c.x}" onchange="updateComponent(${i},'x',this.value)" style="font-size:.75rem"></div><div><label>Y</label><input type="number" value="${c.y}" onchange="updateComponent(${i},'y',this.value)" style="font-size:.75rem"></div><div><label>Z</label><input type="number" value="${c.z}" onchange="updateComponent(${i},'z',this.value)" style="font-size:.75rem"></div></div></div>`;
     }).join('');
 }
 
@@ -1071,9 +1123,9 @@ function rebuild3D() {
     clearDimLabels();
     components.forEach((c, i) => {
         if (c.type === 'hole') addCylinder3D(c.x, c.y + c.th/2, c.z, c.l/2, c.th, parseInt(c.color), i);
-        else if (c.type === 'slab' || c.type === 'drawer' || c.type === 'shelf' || c.type === 'facade') addBox3D(c.x, c.y + c.th/2, c.z, c.l, c.th, c.w, parseInt(c.color), c.rotY, i);
-        else if (c.type === 'leg') addBox3D(c.x, c.y + c.th/2, c.z, c.l, c.th, c.w, parseInt(c.color), c.rotY, i);
-        else if (c.type === 'bracket') addBox3D(c.x, c.y + c.th/2, c.z, c.l, c.th, c.w, parseInt(c.color), c.rotY, i);
+        else if (c.type === 'slab' || c.type === 'drawer' || c.type === 'shelf' || c.type === 'facade') addBox3D(c.x, c.y + c.th/2, c.z, c.l, c.th, c.w, parseInt(c.color), c.rotX || 0, c.rotY || 0, c.rotZ || 0, i);
+        else if (c.type === 'leg') addBox3D(c.x, c.y + c.th/2, c.z, c.l, c.th, c.w, parseInt(c.color), c.rotX || 0, c.rotY || 0, c.rotZ || 0, i);
+        else if (c.type === 'bracket') addBox3D(c.x, c.y + c.th/2, c.z, c.l, c.th, c.w, parseInt(c.color), c.rotX || 0, c.rotY || 0, c.rotZ || 0, i);
         else if (c.type === 'wheel') addCylinder3D(c.x, c.y + c.th/2, c.z, c.l/2, c.th, parseInt(c.color), i);
     });
     if (currentView === 'dimensions') {
@@ -1151,14 +1203,14 @@ function calcTotal() {
     drillCost = currentParts.filter(p => p.mat && p.mat.includes('ЛДСП')).length * 4 * PRICES["Присадка под конфирмат"];
     currentHardware.forEach(h => hardCost += (PRICES[h.n] || 0) * h.q);
     const total = matCost + edgeCost + hardCost + drillCost;
-    document.getElementById('breakdown').innerHTML = `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0"><span>🪵 Материалы (${sheetsNeeded} л.)</span><b>${matCost.toFixed(0)} ₽</b></div><div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0"><span>📏 Кромление</span><b>${edgeCost.toFixed(0)} ₽</b></div><div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0"><span> Присадка</span><b>${drillCost.toFixed(0)} ₽</b></div><div style="display:flex;justify-content:space-between;padding:4px 0"><span>🔩 Фурнитура</span><b>${hardCost.toFixed(0)} ₽</b></div>`;
+    document.getElementById('breakdown').innerHTML = `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0"><span> Материалы (${sheetsNeeded} л.)</span><b>${matCost.toFixed(0)} ₽</b></div><div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0"><span>📏 Кромление</span><b>${edgeCost.toFixed(0)} ₽</b></div><div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e2e8f0"><span> Присадка</span><b>${drillCost.toFixed(0)} ₽</b></div><div style="display:flex;justify-content:space-between;padding:4px 0"><span>🔩 Фурнитура</span><b>${hardCost.toFixed(0)} ₽</b></div>`;
     document.getElementById('totalVal').textContent = total.toFixed(0) + ' ₽';
     document.getElementById('retailVal').textContent = (total * 1.8).toFixed(0) + ' ₽';
 }
 
 function exportCSV() {
-    let c = "Компонент,Тип,Длина,Ширина,Высота,X,Y,Z,Поворот,Блок\n";
-    components.forEach((comp, i) => { const block = blocks.find(b => b.componentIndices.includes(i)); c += `${comp.name},${comp.type},${comp.l},${comp.w},${comp.th},${comp.x},${comp.y},${comp.z},${comp.rotY||0},${block ? block.name : ''}\n`; });
+    let c = "Компонент,Тип,Длина,Ширина,Высота,X,Y,Z,ПоворотX,ПоворотY,ПоворотZ,Блок\n";
+    components.forEach((comp, i) => { const block = blocks.find(b => b.componentIndices.includes(i)); c += `${comp.name},${comp.type},${comp.l},${comp.w},${comp.th},${comp.x},${comp.y},${comp.z},${comp.rotX||0},${comp.rotY||0},${comp.rotZ||0},${block ? block.name : ''}\n`; });
     const b = new Blob([c], { type: 'text/csv;charset=utf-8;' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'проект.csv'; a.click();
 }
 
