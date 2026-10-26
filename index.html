@@ -111,17 +111,22 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 <div id="historyList" style="max-height:90px;overflow-y:auto;margin-bottom:8px;border:1px solid #e2e8f0;border-radius:4px;padding:4px"></div>
 
 <div class="fg">
-<label>🤖 Опишите мебель (понимает естественный язык)</label>
-<textarea id="aiDescription" placeholder="Примеры:
-• шкаф 2000х800х400 с 3 полками и 2 ящиками внизу
-• письменный стол 120х60 высота 75 см на ножках
-• угловая тумба под ТВ с зеркальными фасадами
-• стеллаж 180 см высота, 5 полок, без задней стенки"></textarea>
+<label>🤖 Опишите мебель (используйте: ширина/глубина/высота)</label>
+<textarea id="aiDescription" placeholder="Формат: ТИП ширина X глубина Y высота Z + опции
+
+Примеры:
+• шкаф ширина 800 глубина 400 высота 2000, 3 полки, фасады
+• тумба под ТВ ширина 1500 глубина 400 высота 500, 2 ящика
+• стеллаж ширина 1200 глубина 300 высота 1800, 5 полок
+• письменный стол ширина 1200 глубина 600 высота 750
+• угловой шкаф ширина 2400 глубина 600 высота 2200, зеркало"></textarea>
 <div class="example-chips">
-<span class="chip" onclick="setExample('шкаф 2000х800х400 с 3 полками и 2 ящиками внизу')">🗄️ Шкаф с ящиками</span>
-<span class="chip" onclick="setExample('письменный стол 120х60 высота 75 см на ножках')">🍽️ Стол на ножках</span>
-<span class="chip" onclick="setExample('угловой шкаф-купе 2400х2400 с зеркальными дверцами')">📐 Угловой шкаф</span>
-<span class="chip" onclick="setExample('стеллаж 1800 высота, 5 полок, без задней стенки')">📚 Стеллаж</span>
+<span class="chip" onclick="setExample('шкаф ширина 800 глубина 400 высота 2000, 3 полки, фасады')">🗄️ Шкаф с полками</span>
+<span class="chip" onclick="setExample('тумба под ТВ ширина 1500 глубина 400 высота 500, 2 ящика')">📺 Тумба под ТВ</span>
+<span class="chip" onclick="setExample('стеллаж ширина 1200 глубина 300 высота 1800, 5 полок')">📚 Стеллаж</span>
+<span class="chip" onclick="setExample('письменный стол ширина 1200 глубина 600 высота 750')">🍽️ Письменный стол</span>
+<span class="chip" onclick="setExample('угловой шкаф ширина 2400 глубина 600 высота 2200, зеркальные фасады')">📐 Угловой шкаф</span>
+<span class="chip" onclick="setExample('комод ширина 1000 глубина 450 высота 900, 4 ящика')">🗃️ Комод</span>
 </div>
 <button class="ai" onclick="buildFromDescription()">✨ Построить по описанию</button>
 <div id="parseResult" class="parse-result"></div>
@@ -569,81 +574,82 @@ function updateComponentFromTransform(){
     info.innerHTML = `<b>🔄 ${mode === 'rotate' ? 'Вращение' : 'Перемещение'}:</b> ${label} <span style="color:#10b981">(${Math.round(comp.x)}, ${Math.round(comp.y)}, ${Math.round(comp.z)})</span>`;
 }
 
-/* ================= 6. ПРОДВИНУТЫЙ ПАРСЕР ОПИСАНИЙ ================= */
+/* ================= 6. ПРОДВИНУТЫЙ ПАРСЕР ОПИСАНИЙ (ПОЛНОСТЬЮ ПЕРЕПИСАН) ================= */
 function buildBoxC(x0, x1, z0, z1, y0, y1, type, name, mat, color){
     return { type: type, name: name, l: Math.round(x1 - x0), w: Math.round(z1 - z0), th: Math.round(y1 - y0),
         x: Math.round((x0 + x1) / 2), y: Math.round(y0), z: Math.round((z0 + z1) / 2),
         rotX: 0, rotY: 0, rotZ: 0, color: color, material: mat, hidden: false };
 }
 
-function parseDescription(text){
+// Конвертация в миллиметры
+function convertToMm(value, unit) {
+    const num = parseFloat(String(value).replace(',', '.'));
+    if (!isFinite(num)) return null;
+    if (!unit) return num <= 30 ? num * 1000 : (num <= 300 ? num * 10 : num); // эвристика
+    if (unit.includes('м') && !unit.includes('мм')) return num * 1000;
+    if (unit.includes('см')) return num * 10;
+    return num; // мм
+}
+
+// Определение типа мебели
+function detectType(text) {
+    if (/стол|столик|письменн|компьютерн/.test(text)) return 'table';
+    if (/стул|кресл|табурет/.test(text)) return 'chair';
+    if (/кровать/.test(text)) return 'bed';
+    if (/диван|софа/.test(text)) return 'sofa';
+    if (/тумба|комод|под\s*тв/.test(text)) return 'low-cabinet';
+    if (/пенал|высокий\s*шкаф/.test(text)) return 'tall-cabinet';
+    if (/стеллаж/.test(text)) return 'shelf';
+    if (/шкаф|купе/.test(text)) return 'cabinet';
+    return 'cabinet';
+}
+
+// Извлечение размеров с приоритетом ключевых слов
+function extractDimensions(text) {
     const t = text.toLowerCase().replace(/,/g, '.');
+    let w = null, d = null, h = null;
     const log = [];
-    let w = 800, d = 400, h = 2000; // Дефолтные значения
-
-    // 1. Умный поиск размеров по ключевым словам
-    const extractDim = (regex) => {
-        const m = t.match(regex);
-        if (!m) return null;
-        let val = parseFloat(m[1].replace(',', '.'));
-        const unit = m[2] || '';
-        if (unit.includes('м') && !unit.includes('мм')) val *= 1000;
-        else if (unit.includes('см')) val *= 10;
-        return Math.round(val);
-    };
-
-    const foundW = extractDim(/ширин[ауой]?\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(см|мм|м)?/);
-    const foundD = extractDim(/глубин[аеой]?\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(см|мм|м)?/);
-    const foundH = extractDim(/высот[аеой]?\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(см|мм|м)?/);
-
-    if (foundW) w = foundW;
-    if (foundD) d = foundD;
-    if (foundH) h = foundH;
-
-    // 2. Если ключевых слов нет, ищем паттерн "1200x600x2000" или "120 х 60"
-    if (!foundW && !foundD && !foundH) {
-        const dimMatch = t.match(/(\d+(?:\.\d+)?)\s*(см|мм|м)?\s*[хx×]\s*(\d+(?:\.\d+)?)\s*(см|мм|м)?(?:\s*[хx×]\s*(\d+(?:\.\d+)?)\s*(см|мм|м)?)?/);
+    
+    // Приоритет 1: явные ключевые слова
+    const wMatch = t.match(/ширин[ауой]?\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*(см|мм|м)?/);
+    const dMatch = t.match(/глубин[аеой]?\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*(см|мм|м)?/);
+    const hMatch = t.match(/высот[аеой]?\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*(см|мм|м)?/);
+    
+    if (wMatch) { w = convertToMm(wMatch[1], wMatch[2]); log.push(`Ширина: ${w} мм`); }
+    if (dMatch) { d = convertToMm(dMatch[1], dMatch[2]); log.push(`Глубина: ${d} мм`); }
+    if (hMatch) { h = convertToMm(hMatch[1], hMatch[2]); log.push(`Высота: ${h} мм`); }
+    
+    // Приоритет 2: паттерн "A x B x C" или "A x B"
+    if (!w || !d || !h) {
+        const dimMatch = t.match(/(\d+(?:[.,]\d+)?)\s*(см|мм|м)?\s*[хx×]\s*(\d+(?:[.,]\d+)?)\s*(см|мм|м)?(?:\s*[хx×]\s*(\d+(?:[.,]\d+)?)\s*(см|мм|м)?)?/);
         if (dimMatch) {
-            const conv = (v, unit) => {
-                const n = parseFloat(String(v).replace(',', '.'));
-                if (unit === 'см') return n * 10;
-                if (unit === 'м') return n * 1000;
-                return n <= 300 ? n * 10 : n; // эвристика: если число маленькое, это см
-            };
-            const a = conv(dimMatch[1], dimMatch[2]);
-            const b = conv(dimMatch[3], dimMatch[4] || dimMatch[2]);
-            const c = dimMatch[5] ? conv(dimMatch[5], dimMatch[6] || dimMatch[4] || dimMatch[2]) : null;
+            const a = convertToMm(dimMatch[1], dimMatch[2]);
+            const b = convertToMm(dimMatch[3], dimMatch[4] || dimMatch[2]);
+            const c = dimMatch[5] ? convertToMm(dimMatch[5], dimMatch[6] || dimMatch[4] || dimMatch[2]) : null;
             
-            if (c) {
-                // Сортируем: высота обычно самая большая, глубина самая маленькая
+            if (c && (!w || !d || !h)) {
+                // Три числа: эвристика — самое большое это высота
                 const dims = [a, b, c].sort((x, y) => y - x);
-                h = dims[0]; w = dims[1]; d = dims[2];
+                if (!h) h = dims[0];
+                if (!w) w = dims[1];
+                if (!d) d = dims[2];
                 log.push(`Размеры (авто): Ш${w} × Г${d} × В${h}`);
-            } else {
-                w = Math.max(a, b); d = Math.min(a, b);
-                log.push(`Размеры (авто): Ш${w} × Г${d}`);
+            } else if (!c && (!w || !d)) {
+                // Два числа: для столов это Ш×Г, для шкафов Ш×В
+                if (!w) w = Math.max(a, b);
+                if (!d) d = Math.min(a, b);
+                log.push(`Размеры (авто): ${w} × ${d}`);
             }
         }
-    } else {
-        if (foundW) log.push(`Ширина: ${w} мм`);
-        if (foundD) log.push(`Глубина: ${d} мм`);
-        if (foundH) log.push(`Высота: ${h} мм`);
     }
-
-    // 3. Определение типа и коррекция дефолтов
-    let type = 'cabinet';
-    if (/стол|столик|письменн|компьютерн/.test(t)) { type = 'table'; h = foundH || 750; d = foundD || 600; }
-    else if (/стул|кресл|табурет/.test(t)) { type = 'chair'; h = foundH || 850; w = foundW || 450; d = foundD || 450; }
-    else if (/тумба|комод/.test(t)) { type = 'low-cabinet'; h = foundH || 800; }
-    else if (/пенал|высокий/.test(t)) { type = 'tall-cabinet'; h = foundH || 2000; }
-    else if (/кровать/.test(t)) { type = 'bed'; h = foundH || 400; w = foundW || 1600; d = foundD || 2000; }
-    else if (/диван|софа/.test(t)) { type = 'sofa'; h = foundH || 800; w = foundW || 2000; d = foundD || 900; }
-    else if (/стеллаж|полк/.test(t)) { type = 'shelf'; h = foundH || 1800; d = foundD || 300; }
     
-    log.push(`Тип: ${type}`);
+    return { w, d, h, log };
+}
 
-    // 4. Извлечение фич (модификаторов)
-    const features = {
+// Извлечение фич (модификаторов)
+function extractFeatures(text) {
+    const t = text.toLowerCase();
+    return {
         shelves: parseInt(t.match(/(\d+)\s*(?:полок|полки|полка)/)?.[1] || 0),
         drawers: parseInt(t.match(/(\d+)\s*(?:ящиков|ящика|ящик)/)?.[1] || 0),
         hasDoors: /двер|фасад|купе|глух/.test(t),
@@ -653,108 +659,272 @@ function parseDescription(text){
         isCorner: /углов/.test(t),
         isGlass: /стекл/.test(t),
         isMirror: /зеркал/.test(t),
-        hasLed: /подсветк|led|лэд/.test(t)
+        hasLed: /подсветк|led|лэд/.test(t),
+        sections: parseInt(t.match(/(\d+)\s*(?:секци|отсек)/)?.[1] || 1)
     };
+}
 
+// Сборка корпуса (шкаф, стеллаж, тумба)
+function buildCabinet(w, d, h, features, mat, color, log) {
+    const comps = [];
+    const t = 18; // толщина ЛДСП
+    
+    // Боковины
+    comps.push(buildBoxC(-w/2, -w/2+t, -d/2, d/2, 0, h, 'slab', 'Боковина левая', mat, color));
+    comps.push(buildBoxC(w/2-t, w/2, -d/2, d/2, 0, h, 'slab', 'Боковина правая', mat, color));
+    
+    // Дно и крышка
+    comps.push(buildBoxC(-w/2+t, w/2-t, -d/2, d/2, 0, t, 'slab', 'Дно', mat, color));
+    comps.push(buildBoxC(-w/2+t, w/2-t, -d/2, d/2, h-t, h, 'slab', 'Крышка', mat, color));
+    
+    // Внутреннее пространство
+    const innerW = w - 2*t;
+    const innerH = h - 2*t;
+    const innerD = d - 20; // отступ от задней стенки
+    
+    let currentY = t; // начинаем от дна
+    
+    // Ящики (внизу)
+    if (features.drawers > 0) {
+        const drawerAreaH = Math.min(innerH * 0.4, features.drawers * 200); // максимум 40% высоты или 200мм на ящик
+        const drawerH = drawerAreaH / features.drawers;
+        
+        for (let i = 0; i < features.drawers; i++) {
+            const y0 = currentY + i * drawerH + 2;
+            const y1 = currentY + (i + 1) * drawerH - 2;
+            comps.push(buildBoxC(-w/2+t+5, w/2-t-5, -d/2+10, d/2-10, y0, y1, 'drawer', `Ящик ${i+1}`, mat, '0xe2c79c'));
+        }
+        currentY += drawerAreaH;
+        log.push(`Ящики: ${features.drawers} шт, высота каждого ${Math.round(drawerH)} мм`);
+    }
+    
+    // Полки (над ящиками или от дна)
+    if (features.shelves > 0) {
+        const shelfAreaH = h - t - currentY; // доступная высота для полок
+        const shelfSpacing = shelfAreaH / (features.shelves + 1);
+        
+        for (let i = 1; i <= features.shelves; i++) {
+            const y = currentY + shelfSpacing * i;
+            comps.push(buildBoxC(-w/2+t, w/2-t, -d/2+10, d/2-10, y-9, y+9, 'shelf', `Полка ${i}`, 
+                features.isGlass ? 'glass' : mat, 
+                features.isGlass ? '0x87ceeb' : color));
+        }
+        log.push(`Полки: ${features.shelves} шт, шаг ${Math.round(shelfSpacing)} мм`);
+    }
+    
+    // Фасады
+    if (features.hasDoors) {
+        const doorMat = features.isMirror ? 'mirror' : (features.isGlass ? 'glass' : mat);
+        const doorCol = features.isMirror ? '0xc0c0c0' : (features.isGlass ? '0x87ceeb' : '0x3b82f6');
+        
+        const facadeH = h - 2*t - 20; // отступы сверху/снизу
+        const facadeY0 = t + 10;
+        const facadeY1 = h - t - 10;
+        
+        if (w > 900) {
+            // Два фасада с зазором 3 мм по центру
+            const facadeW = (innerW - 3) / 2;
+            comps.push(buildBoxC(-w/2+t, -w/2+t+facadeW, d/2, d/2+20, facadeY0, facadeY1, 'facade', 'Фасад левый', doorMat, doorCol));
+            comps.push(buildBoxC(w/2-t-facadeW, w/2-t, d/2, d/2+20, facadeY0, facadeY1, 'facade', 'Фасад правый', doorMat, doorCol));
+            log.push(`Фасады: 2 шт, ширина каждого ${Math.round(facadeW)} мм`);
+        } else {
+            // Один фасад
+            comps.push(buildBoxC(-w/2+t, w/2-t, d/2, d/2+20, facadeY0, facadeY1, 'facade', 'Фасад', doorMat, doorCol));
+            log.push('Фасад: 1 шт');
+        }
+    }
+    
+    // Задняя стенка
+    if (features.hasBack) {
+        comps.push(buildBoxC(-w/2+5, w/2-5, -d/2+5, -d/2+18, t, h-t, 'slab', 'Задняя стенка (ДВП)', 'none', '0xc49a6c'));
+        log.push('Задняя стенка: есть');
+    }
+    
+    // Цоколь
+    if (features.hasPlinth) {
+        comps.push(buildBoxC(-w/2+40, w/2-40, d/2-10, d/2, 0, 80, 'slab', 'Цоколь передний', mat, color));
+        log.push('Цоколь: есть');
+    }
+    
+    return comps;
+}
+
+// Сборка стола
+function buildTable(w, d, h, features, mat, color, log) {
+    const comps = [];
+    const topThickness = 40;
+    
+    // Столешница
+    comps.push(buildBoxC(-w/2, w/2, -d/2, d/2, h-topThickness, h, 'slab', 'Столешница', 
+        features.isGlass ? 'glass' : mat, 
+        features.isGlass ? '0x87ceeb' : color));
+    
+    // Ножки
+    const legSize = 50;
+    const legH = h - topThickness;
+    const positions = [
+        [-w/2+legSize, -d/2+legSize],
+        [w/2-legSize, -d/2+legSize],
+        [-w/2+legSize, d/2-legSize],
+        [w/2-legSize, d/2-legSize]
+    ];
+    
+    positions.forEach((pos, i) => {
+        comps.push(buildBoxC(pos[0]-legSize/2, pos[0]+legSize/2, pos[1]-legSize/2, pos[1]+legSize/2, 0, legH, 'leg', `Ножка ${i+1}`, 'metal', '0x94a3b8'));
+    });
+    
+    log.push(`Стол: ${w}×${d}, высота ${h} мм`);
+    return comps;
+}
+
+// Сборка стула
+function buildChair(w, d, h, features, mat, color, log) {
+    const comps = [];
+    const seatH = Math.min(h * 0.5, 460);
+    
+    // Сиденье
+    comps.push(buildBoxC(-w/2, w/2, -d/2, d/2, seatH, seatH+20, 'slab', 'Сиденье', mat, color));
+    
+    // Ножки
+    const legSize = 40;
+    const positions = [
+        [-w/2+legSize, -d/2+legSize],
+        [w/2-legSize, -d/2+legSize],
+        [-w/2+legSize, d/2-legSize],
+        [w/2-legSize, d/2-legSize]
+    ];
+    
+    positions.forEach((pos, i) => {
+        comps.push(buildBoxC(pos[0]-legSize/2, pos[0]+legSize/2, pos[1]-legSize/2, pos[1]+legSize/2, 0, seatH, 'leg', `Ножка ${i+1}`, 'metal', '0x94a3b8'));
+    });
+    
+    // Спинка
+    if (h > seatH + 100) {
+        comps.push(buildBoxC(-w/2+20, w/2-20, -d/2, -d/2+20, seatH, h, 'slab', 'Спинка', 
+            features.isMirror ? 'mirror' : mat, 
+            features.isMirror ? '0xc0c0c0' : '0xc49a6c'));
+    }
+    
+    log.push(`Стул: ${w}×${d}, высота ${h} мм`);
+    return comps;
+}
+
+// Сборка углового шкафа
+function buildCornerCabinet(w, d, h, features, mat, color, log) {
+    const comps = [];
+    const t = 18;
+    const d1 = Math.min(d, 600); // глубина угловой секции
+    
+    // Секция A (горизонтальная, вдоль оси X)
+    const wA = w - d1;
+    comps.push(buildBoxC(-w/2, -w/2+t, -d/2, -d/2+d1, 0, h, 'slab', 'Секция A: Боковина левая', mat, color));
+    comps.push(buildBoxC(-d1-t, -d1, -d/2, -d/2+d1, 0, h, 'slab', 'Секция A: Перегородка', mat, color));
+    comps.push(buildBoxC(-w/2+t, -d1-t, -d/2, -d/2+d1, 0, t, 'slab', 'Секция A: Дно', mat, color));
+    comps.push(buildBoxC(-w/2+t, -d1-t, -d/2, -d/2+d1, h-t, h, 'slab', 'Секция A: Крышка', mat, color));
+    
+    // Полки секции A
+    if (features.shelves > 0) {
+        const shelfCount = Math.ceil(features.shelves / 2);
+        const innerH = h - 2*t;
+        const spacing = innerH / (shelfCount + 1);
+        for (let i = 1; i <= shelfCount; i++) {
+            const y = t + spacing * i;
+            comps.push(buildBoxC(-w/2+t, -d1-t, -d/2+10, -d/2+d1-10, y-9, y+9, 'shelf', `Секция A: Полка ${i}`, 
+                features.isGlass ? 'glass' : mat, 
+                features.isGlass ? '0x87ceeb' : color));
+        }
+    }
+    
+    // Секция B (вертикальная, вдоль оси Z)
+    comps.push(buildBoxC(-d1-t, -d1, -d/2+d1, d/2, 0, h, 'slab', 'Секция B: Боковина задняя', mat, color));
+    comps.push(buildBoxC(-w/2, -w/2+t, -d/2+d1, d/2, 0, h, 'slab', 'Секция B: Боковина правая', mat, color));
+    comps.push(buildBoxC(-w/2, -w/2+t, -d/2+d1, d/2, 0, t, 'slab', 'Секция B: Дно', mat, color));
+    comps.push(buildBoxC(-w/2, -w/2+t, -d/2+d1, d/2, h-t, h, 'slab', 'Секция B: Крышка', mat, color));
+    
+    // Полки секции B
+    if (features.shelves > 0) {
+        const shelfCount = Math.floor(features.shelves / 2);
+        const innerH = h - 2*t;
+        const spacing = innerH / (shelfCount + 1);
+        for (let i = 1; i <= shelfCount; i++) {
+            const y = t + spacing * i;
+            comps.push(buildBoxC(-w/2+10, -w/2+t-10, -d/2+d1, d/2-10, y-9, y+9, 'shelf', `Секция B: Полка ${i}`, 
+                features.isGlass ? 'glass' : mat, 
+                features.isGlass ? '0x87ceeb' : color));
+        }
+    }
+    
+    log.push(`Угловой шкаф: секция A (${wA}×${d1}), секция B (${d1}×${d-d1})`);
+    return comps;
+}
+
+// ГЛАВНАЯ ФУНКЦИЯ ПАРСЕРА
+function parseDescription(text) {
+    const t = text.toLowerCase();
+    const log = [];
+    
+    // 1. Определяем тип
+    const type = detectType(t);
+    log.push(`Тип: ${type}`);
+    
+    // 2. Извлекаем размеры
+    const dims = extractDimensions(t);
+    log.push(...dims.log);
+    
+    // 3. Применяем дефолты по типу
+    const defaults = {
+        'table': { w: 1200, d: 600, h: 750 },
+        'chair': { w: 450, d: 450, h: 850 },
+        'low-cabinet': { w: 1200, d: 400, h: 500 },
+        'tall-cabinet': { w: 600, d: 400, h: 2200 },
+        'cabinet': { w: 800, d: 400, h: 2000 },
+        'shelf': { w: 800, d: 300, h: 1800 },
+        'bed': { w: 1600, d: 2000, h: 400 },
+        'sofa': { w: 2000, d: 900, h: 800 }
+    };
+    
+    const w = dims.w || defaults[type].w;
+    const d = dims.d || defaults[type].d;
+    const h = dims.h || defaults[type].h;
+    
+    if (!dims.w) log.push(`Ширина (дефолт): ${w} мм`);
+    if (!dims.d) log.push(`Глубина (дефолт): ${d} мм`);
+    if (!dims.h) log.push(`Высота (дефолт): ${h} мм`);
+    
+    // 4. Извлекаем фичи
+    const features = extractFeatures(t);
     if (features.shelves > 0) log.push(`Полок: ${features.shelves}`);
     if (features.drawers > 0) log.push(`Ящиков: ${features.drawers}`);
-    if (features.hasDoors) log.push('Есть фасады/двери');
-    if (features.hasBack) log.push('Есть задняя стенка');
-    if (features.hasPlinth) log.push('Есть цоколь');
-    if (features.hasLegs) log.push('На ножках');
-
-    // 5. Процедурная сборка компонентов
-    const comps = [];
+    if (features.hasDoors) log.push('Фасады: есть');
+    if (features.hasBack) log.push('Задняя стенка: есть');
+    if (features.hasPlinth) log.push('Цоколь: есть');
+    if (features.isCorner) log.push('Угловой: да');
+    if (features.isMirror) log.push('Материал: зеркало');
+    if (features.isGlass) log.push('Материал: стекло');
+    
+    // 5. Строим компоненты
     const mat = defaultMat();
     const color = features.isMirror ? '0xc0c0c0' : '0xd4a373';
-    const t_mat = 18; // Стандартная толщина ЛДСП
-
+    
+    let comps = [];
     if (features.isCorner) {
-        // Угловая сборка (Г-образная)
-        const d1 = Math.min(d, 600);
-        // Секция 1 (вдоль ширины)
-        comps.push(buildBoxC(-w/2, -w/2 + t_mat, -d/2, d/2, 0, h, 'slab', 'Боковина левая', mat, color));
-        comps.push(buildBoxC(-d1, -d1 + t_mat, -d/2, d/2, 0, h, 'slab', 'Перегородка угловая', mat, color));
-        comps.push(buildBoxC(-w/2 + t_mat, -d1, -d/2, d/2, 0, t_mat, 'slab', 'Дно 1', mat, color));
-        comps.push(buildBoxC(-w/2 + t_mat, -d1, -d/2, d/2, h - t_mat, h, 'slab', 'Крышка 1', mat, color));
-        // Секция 2 (вдоль глубины)
-        comps.push(buildBoxC(-w/2, -w/2 + t_mat, -d/2, -d/2 + d1, 0, h, 'slab', 'Боковина задняя', mat, color));
-        comps.push(buildBoxC(-w/2, -w/2 + t_mat, -d/2 + d1, d/2, 0, h, 'slab', 'Боковина правая', mat, color));
-        comps.push(buildBoxC(-w/2, -w/2 + t_mat, -d/2 + d1, d/2, 0, t_mat, 'slab', 'Дно 2', mat, color));
-        comps.push(buildBoxC(-w/2, -w/2 + t_mat, -d/2 + d1, d/2, h - t_mat, h, 'slab', 'Крышка 2', mat, color));
-        
-        if (features.shelves > 0) {
-            const sp1 = h / (features.shelves + 1);
-            for(let i=1; i<=features.shelves; i++) {
-                comps.push(buildBoxC(-w/2 + t_mat, -d1, -d/2 + 10, d/2 - 10, sp1*i - 9, sp1*i + 9, 'shelf', `Полка ${i}`, features.isGlass ? 'glass' : mat, features.isGlass ? '0x87ceeb' : color));
-            }
-        }
-    } else if (type === 'table' || features.hasLegs) {
-        // Стол или мебель на ножках
-        comps.push(buildBoxC(-w/2, w/2, -d/2, d/2, h - (foundH && foundH < 100 ? foundH : 40), h, 'slab', 'Столешница', features.isGlass ? 'glass' : mat, features.isGlass ? '0x87ceeb' : color));
-        const legSize = 40;
-        [[-w/2+legSize, -d/2+legSize], [w/2-legSize, -d/2+legSize], [-w/2+legSize, d/2-legSize], [w/2-legSize, d/2-legSize]].forEach((pos, i) => {
-            comps.push(buildBoxC(pos[0]-legSize/2, pos[0]+legSize/2, pos[1]-legSize/2, pos[1]+legSize/2, 0, h - 40, 'leg', `Ножка ${i+1}`, 'metal', '0x94a3b8'));
-        });
+        comps = buildCornerCabinet(w, d, h, features, mat, color, log);
+    } else if (type === 'table') {
+        comps = buildTable(w, d, h, features, mat, color, log);
+    } else if (type === 'chair') {
+        comps = buildChair(w, d, h, features, mat, color, log);
     } else {
-        // Стандартный корпус (шкаф, тумба, стеллаж)
-        comps.push(buildBoxC(-w/2, -w/2 + t_mat, -d/2, d/2, 0, h, 'slab', 'Боковина левая', mat, color));
-        comps.push(buildBoxC(w/2 - t_mat, w/2, -d/2, d/2, 0, h, 'slab', 'Боковина правая', mat, color));
-        
-        if (h > 100) { // Не добавляем дно/крышку для простых полок на стену
-            comps.push(buildBoxC(-w/2 + t_mat, w/2 - t_mat, -d/2, d/2, 0, t_mat, 'slab', 'Дно', mat, color));
-            comps.push(buildBoxC(-w/2 + t_mat, w/2 - t_mat, -d/2, d/2, h - t_mat, h, 'slab', 'Крышка', mat, color));
-        }
-
-        // Ящики (внизу)
-        if (features.drawers > 0) {
-            const dH = Math.min(150, (h * 0.4) / features.drawers);
-            for(let i=0; i<features.drawers; i++) {
-                comps.push(buildBoxC(-w/2 + t_mat + 5, w/2 - t_mat - 5, -d/2 + 10, d/2 - 10, t_mat + i*(dH+5), t_mat + i*(dH+5) + dH, 'drawer', `Ящик ${i+1}`, mat, '0xe2c79c'));
-            }
-        }
-
-        // Полки
-        if (features.shelves > 0) {
-            const startY = features.drawers > 0 ? (t_mat + features.drawers * 155) : t_mat;
-            const endY = h - t_mat;
-            const space = (endY - startY) / (features.shelves + 1);
-            for(let i=1; i<=features.shelves; i++) {
-                comps.push(buildBoxC(-w/2 + t_mat, w/2 - t_mat, -d/2 + 10, d/2 - 10, startY + space*i - 9, startY + space*i + 9, 'shelf', `Полка ${i}`, features.isGlass ? 'glass' : mat, features.isGlass ? '0x87ceeb' : color));
-            }
-        }
-
-        // Фасады
-        if (features.hasDoors) {
-            const doorMat = features.isMirror ? 'mirror' : (features.isGlass ? 'glass' : mat);
-            const doorCol = features.isMirror ? '0xc0c0c0' : (features.isGlass ? '0x87ceeb' : '0x3b82f6');
-            if (w > 800) { // Две двери
-                comps.push(buildBoxC(-w/2 + 2, -2, d/2, d/2 + 20, t_mat + 10, h - t_mat - 10, 'facade', 'Фасад левый', doorMat, doorCol));
-                comps.push(buildBoxC(2, w/2 - 2, d/2, d/2 + 20, t_mat + 10, h - t_mat - 10, 'facade', 'Фасад правый', doorMat, doorCol));
-            } else { // Одна дверь
-                comps.push(buildBoxC(-w/2 + 2, w/2 - 2, d/2, d/2 + 20, t_mat + 10, h - t_mat - 10, 'facade', 'Фасад', doorMat, doorCol));
-            }
-        }
-
-        // Задняя стенка
-        if (features.hasBack) {
-            comps.push(buildBoxC(-w/2 + 5, w/2 - 5, -d/2 + 5, -d/2 + 18, t_mat, h - t_mat, 'slab', 'Задняя стенка (ДВП)', 'none', '0xc49a6c'));
-        }
-
-        // Цоколь
-        if (features.hasPlinth) {
-            comps.push(buildBoxC(-w/2 + 40, w/2 - 40, -d/2, -d/2 + 10, 0, 80, 'slab', 'Цоколь передний', mat, color));
-            comps.push(buildBoxC(-w/2 + 40, -w/2 + 50, -d/2, d/2, 0, 80, 'slab', 'Цоколь левый', mat, color));
-            comps.push(buildBoxC(w/2 - 50, w/2 - 40, -d/2, d/2, 0, 80, 'slab', 'Цоколь правый', mat, color));
-        }
+        // cabinet, low-cabinet, tall-cabinet, shelf
+        comps = buildCabinet(w, d, h, features, mat, color, log);
     }
-
-    // Доп. элементы
+    
+    // 6. Дополнительные элементы
     if (features.hasLed) {
-        comps.push(buildBoxC(-w/4, w/4, -d/2 + 20, -d/2 + 40, h - 100, h - 80, 'led', 'LED подсветка', 'none', '0xfbbf24'));
-        log.push('Добавлена подсветка');
+        comps.push(buildBoxC(-w/4, w/4, -d/2+20, -d/2+40, h-100, h-80, 'led', 'LED подсветка', 'none', '0xfbbf24'));
+        log.push('Добавлена LED подсветка');
     }
-
+    
+    log.push(`Итого деталей: ${comps.length}`);
     return { components: comps, log: log };
 }
 
@@ -764,7 +934,7 @@ function buildFromDescription(){
     const parsed = parseDescription(desc);
     const resultDiv = document.getElementById('parseResult');
     resultDiv.style.display = 'block';
-    resultDiv.innerHTML = `<b>✅ Распознано:</b><br>` + parsed.log.map(l => `• ${esc(l)}`).join('<br>') + `<br><b>Компонентов:</b> ${parsed.components.length}`;
+    resultDiv.innerHTML = `<b>✅ Распознано:</b><br>` + parsed.log.map(l => `• ${esc(l)}`).join('<br>');
     snapshot('Построение по описанию');
     components = parsed.components; blocks = [];
     deselectAll(); renderComponentsList(); renderBlocksList(); rebuild3D(); updateUI();
