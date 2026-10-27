@@ -105,35 +105,34 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 <h2>🛠️ Конструктор с ИИ</h2>
 
 <div class="btn-row">
-<button class="sec" onclick="undo()">↩️ Отменить (Ctrl+Z)</button>
-<button class="sec" onclick="redo()">↪️ Повторить (Ctrl+Y)</button>
+<button class="sec" onclick="undo()">↩️ Отменить</button>
+<button class="sec" onclick="redo()">↪️ Повторить</button>
 </div>
 <div id="historyList" style="max-height:90px;overflow-y:auto;margin-bottom:8px;border:1px solid #e2e8f0;border-radius:4px;padding:4px"></div>
 
-<details class="ai-config">
-<summary>🔑 Настройки ИИ (API-ключ)</summary>
+<details class="ai-config" open>
+<summary>🔑 Настройки ИИ (Ollama)</summary>
 <div class="row">
 <div>
 <label>Провайдер</label>
 <select id="aiProvider" onchange="onProviderChange()">
-<option value="openai">OpenAI (GPT-4o-mini)</option>
-<option value="openrouter">OpenRouter (много моделей)</option>
-<option value="ollama">Ollama (локально)</option>
-<option value="custom">Свой OpenAI-совместимый</option>
+<option value="ollama" selected>Ollama (локально)</option>
+<option value="openai">OpenAI</option>
+<option value="openrouter">OpenRouter</option>
 </select>
 </div>
 <div>
 <label>Модель</label>
-<input type="text" id="aiModel" value="gpt-4o-mini" placeholder="gpt-4o-mini">
+<input type="text" id="aiModel" value="qwen2.5:7b" placeholder="qwen2.5:7b">
 </div>
 </div>
 <div class="fg" style="margin-top:6px">
-<label>API-ключ (хранится локально в браузере)</label>
-<input type="password" id="aiKey" placeholder="sk-... или оставьте пустым для локального парсера">
+<label>API-ключ (для Ollama оставьте пустым)</label>
+<input type="password" id="aiKey" placeholder="sk-...">
 </div>
 <div class="fg">
 <label>URL эндпоинта</label>
-<input type="text" id="aiEndpoint" value="https://api.openai.com/v1/chat/completions">
+<input type="text" id="aiEndpoint" value="http://localhost:11434/v1/chat/completions">
 </div>
 <div class="btn-row">
 <button class="sec small" onclick="saveAIConfig()">💾 Сохранить</button>
@@ -142,23 +141,19 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 </details>
 
 <div class="fg">
-<label>🤖 Опишите мебель (естественным языком)</label>
+<label>🤖 Опишите мебель</label>
 <textarea id="aiDescription" placeholder="Примеры:
-• высокий шкаф для одежды с зеркальными дверцами и тремя полками
-• низкая тумба под телевизор с двумя выдвижными ящиками
-• письменный стол с тумбой из трёх ящиков справа
-• угловой кухонный шкаф с мойкой
-• стеллаж для книг во всю стену, 5 полок"></textarea>
+• высокий шкаф для одежды с зеркальными дверцами и 3 полками
+• низкая тумба под ТВ с 2 ящиками и открытой полкой
+• письменный стол ширина 1200 глубина 600 высота 750"></textarea>
 <div class="example-chips">
 <span class="chip" onclick="setExample('высокий шкаф для одежды с зеркальными дверцами и 3 полками')">👔 Шкаф с зеркалом</span>
 <span class="chip" onclick="setExample('низкая тумба под ТВ с 2 ящиками и открытой полкой')">📺 Тумба под ТВ</span>
-<span class="chip" onclick="setExample('письменный стол с тумбой из 3 ящиков справа')">💼 Письменный стол</span>
-<span class="chip" onclick="setExample('стеллаж для книг во всю стену, 5 полок')">📚 Стеллаж</span>
-<span class="chip" onclick="setExample('комод в спальню на 4 ящика, дуб натуральный')">🗃️ Комод</span>
-<span class="chip" onclick="setExample('угловой шкаф-купе 2400x2400 с зеркалом')">📐 Угловой шкаф</span>
+<span class="chip" onclick="setExample('письменный стол ширина 1200 глубина 600 высота 750')">💼 Письменный стол</span>
+<span class="chip" onclick="setExample('угловой шкаф ширина 2400 глубина 1200 высота 2200, зеркальные фасады')">📐 Угловой шкаф</span>
 </div>
 <div class="btn-row">
-<button class="ai" onclick="buildFromDescription()">✨ Построить через ИИ</button>
+<button class="ai" onclick="buildFromDescription(false)">✨ Построить через ИИ</button>
 <button class="sec" onclick="buildFromDescription(true)" title="Без ИИ, только локальный парсер">⚙️ Локально</button>
 </div>
 <div id="parseResult" class="parse-result"></div>
@@ -624,14 +619,9 @@ const AI_SYSTEM_PROMPT = `Ты — эксперт-конструктор кор�
 Верни ТОЛЬКО JSON. Никаких пояснений.`;
 
 async function parseWithAI(text) {
-    const provider = document.getElementById('aiProvider').value;
-    const model = document.getElementById('aiModel').value || 'gpt-4o-mini';
+    const model = document.getElementById('aiModel').value || 'qwen2.5:7b';
+    const endpoint = document.getElementById('aiEndpoint').value || 'http://localhost:11434/v1/chat/completions';
     const key = document.getElementById('aiKey').value.trim();
-    const endpoint = document.getElementById('aiEndpoint').value.trim();
-    
-    if (!key && provider !== 'ollama') {
-        throw new Error('Укажите API-ключ в настройках ИИ (раскройте блок "🔑 Настройки ИИ")');
-    }
     
     const headers = { 'Content-Type': 'application/json' };
     if (key) headers['Authorization'] = `Bearer ${key}`;
@@ -658,22 +648,29 @@ async function parseWithAI(text) {
     }
     
     const data = await response.json();
-    let content = data.choices?.[0]?.message?.content || '';
     
-    // Извлекаем JSON из ответа (на случай если модель добавила markdown)
+    // Безопасное извлечение ответа (как в curl тесте)
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        console.error("Неожиданный ответ от Ollama:", data);
+        throw new Error('Ollama вернула неожиданный формат ответа. Проверьте, что модель запущена: ollama run qwen2.5:7b');
+    }
+    
+    let content = data.choices[0].message.content || '';
+    
+    // Извлекаем только JSON-часть
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('ИИ не вернул JSON');
+    if (!jsonMatch) {
+        console.error("Не удалось найти JSON в ответе:", content);
+        throw new Error('ИИ не вернул корректный JSON. Ответ: ' + content.slice(0, 100));
+    }
     
-    const parsed = JSON.parse(jsonMatch[0]);
-    return normalizeAIParsed(parsed);
+    return normalizeAIParsed(JSON.parse(jsonMatch[0]));
 }
 
-// Нормализация и валидация ответа ИИ
 function normalizeAIParsed(p) {
     const validTypes = ['cabinet','low-cabinet','shelf','table','chair','bed','sofa'];
     const type = validTypes.includes(p.type) ? p.type : 'cabinet';
     
-    // Дефолты по типу
     const defaults = {
         'cabinet': { w: 800, d: 500, h: 2200 },
         'low-cabinet': { w: 1200, d: 400, h: 500 },
@@ -704,7 +701,6 @@ function normalizeAIParsed(p) {
     };
 }
 
-// Локальный fallback-парсер (если нет API-ключа)
 function parseLocal(text) {
     const t = text.toLowerCase().replace(/,/g, '.');
     let w = null, d = null, h = null;
@@ -746,11 +742,8 @@ function parseLocal(text) {
     else if (/кровать/.test(t)) type = 'bed';
     else if (/диван/.test(t)) type = 'sofa';
     
-    return {
-        type: type,
-        width: w || null,
-        depth: d || null,
-        height: h || null,
+    return normalizeAIParsed({
+        type: type, width: w, depth: d, height: h,
         shelves: parseInt(t.match(/(\d+)\s*(?:полок|полки|полка)/)?.[1] || 0),
         drawers: parseInt(t.match(/(\d+)\s*(?:ящиков|ящика|ящик)/)?.[1] || 0),
         hasDoors: /двер|фасад|купе/.test(t),
@@ -762,10 +755,9 @@ function parseLocal(text) {
         isGlass: /стекл/.test(t),
         hasLed: /подсветк|led/.test(t),
         sections: parseInt(t.match(/(\d+)\s*(?:секци|отсек)/)?.[1] || 1)
-    };
+    });
 }
 
-// Главная функция: строим мебель
 async function buildFromDescription(forceLocal = false) {
     const desc = document.getElementById('aiDescription').value.trim();
     if (!desc) { alert('Введите описание мебели'); return; }
@@ -781,19 +773,20 @@ async function buildFromDescription(forceLocal = false) {
     try {
         if (forceLocal) {
             parsed = parseLocal(desc);
-            parsed = normalizeAIParsed(parsed);
             source = 'локальный парсер';
         } else {
             const key = document.getElementById('aiKey').value.trim();
             const provider = document.getElementById('aiProvider').value;
-            if (!key && provider !== 'ollama') {
-                // Нет ключа — используем локальный парсер
+            if (!key && provider === 'ollama') {
+                // Для Ollama ключ не нужен, но если его нет и это не ollama, используем локальный
+                parsed = await parseWithAI(desc);
+                source = document.getElementById('aiModel').value;
+            } else if (!key) {
                 parsed = parseLocal(desc);
-                parsed = normalizeAIParsed(parsed);
                 source = 'локальный парсер (нет API-ключа)';
             } else {
                 parsed = await parseWithAI(desc);
-                source = `${document.getElementById('aiModel').value}`;
+                source = document.getElementById('aiModel').value;
             }
         }
         
@@ -812,16 +805,16 @@ async function buildFromDescription(forceLocal = false) {
     } catch (err) {
         resultDiv.classList.remove('loading');
         resultDiv.classList.add('error');
-        resultDiv.innerHTML = `<b>❌ Ошибка:</b> ${esc(err.message)}<br><small>Попробуйте локальный парсер (кнопка ⚙️) или проверьте API-ключ.</small>`;
+        resultDiv.innerHTML = `<b>❌ Ошибка:</b> ${esc(err.message)}<br><small>Попробуйте локальный парсер (кнопка ⚙️) или проверьте, что Ollama запущена.</small>`;
+        console.error("AI Build Error:", err);
     }
 }
 
-// Универсальный строитель по спецификации (JSON от ИИ)
 function buildFromSpec(spec) {
     const comps = [];
     const mat = defaultMat();
     const color = spec.isMirror ? '0xc0c0c0' : '0xd4a373';
-    const t = 18; // толщина ЛДСП
+    const t = 18;
     const w = spec.width, d = spec.depth, h = spec.height;
     
     if (spec.type === 'table') {
@@ -847,16 +840,12 @@ function buildFromSpec(spec) {
         return comps;
     }
     
-    // Корпусная мебель (шкаф, тумба, стеллаж)
     if (spec.isCorner) {
         return buildCornerFromSpec(spec, mat, color, t);
     }
     
-    // Боковины
     comps.push(buildBoxC(-w/2, -w/2+t, -d/2, d/2, 0, h, 'slab', 'Боковина левая', mat, color));
     comps.push(buildBoxC(w/2-t, w/2, -d/2, d/2, 0, h, 'slab', 'Боковина правая', mat, color));
-    
-    // Дно и крышка
     comps.push(buildBoxC(-w/2+t, w/2-t, -d/2, d/2, 0, t, 'slab', 'Дно', mat, color));
     comps.push(buildBoxC(-w/2+t, w/2-t, -d/2, d/2, h-t, h, 'slab', 'Крышка', mat, color));
     
@@ -864,7 +853,6 @@ function buildFromSpec(spec) {
     const innerH = h - 2*t;
     let currentY = t;
     
-    // Ящики
     if (spec.drawers > 0) {
         const drawerAreaH = Math.min(innerH * 0.5, spec.drawers * 220);
         const drawerH = drawerAreaH / spec.drawers;
@@ -876,7 +864,6 @@ function buildFromSpec(spec) {
         currentY += drawerAreaH;
     }
     
-    // Полки
     if (spec.shelves > 0) {
         const shelfAreaH = h - t - currentY;
         const spacing = shelfAreaH / (spec.shelves + 1);
@@ -886,7 +873,6 @@ function buildFromSpec(spec) {
         }
     }
     
-    // Фасады
     if (spec.hasDoors) {
         const doorMat = spec.isMirror ? 'mirror' : (spec.isGlass ? 'glass' : mat);
         const doorCol = spec.isMirror ? '0xc0c0c0' : (spec.isGlass ? '0x87ceeb' : '0x3b82f6');
@@ -901,17 +887,14 @@ function buildFromSpec(spec) {
         }
     }
     
-    // Задняя стенка
     if (spec.hasBack) {
         comps.push(buildBoxC(-w/2+5, w/2-5, -d/2+5, -d/2+18, t, h-t, 'slab', 'Задняя стенка (ДВП)', 'none', '0xc49a6c'));
     }
     
-    // Цоколь
     if (spec.hasPlinth) {
         comps.push(buildBoxC(-w/2+40, w/2-40, d/2-10, d/2, 0, 80, 'slab', 'Цоколь передний', mat, color));
     }
     
-    // LED
     if (spec.hasLed) {
         comps.push(buildBoxC(-w/4, w/4, -d/2+20, -d/2+40, h-100, h-80, 'led', 'LED подсветка', 'none', '0xfbbf24'));
     }
@@ -924,7 +907,6 @@ function buildCornerFromSpec(spec, mat, color, t) {
     const w = spec.width, d = spec.depth, h = spec.height;
     const d1 = Math.min(d, 600);
     
-    // Секция A (горизонтальная)
     comps.push(buildBoxC(-w/2, -w/2+t, -d/2, -d/2+d1, 0, h, 'slab', 'Секция A: Боковина левая', mat, color));
     comps.push(buildBoxC(-d1-t, -d1, -d/2, -d/2+d1, 0, h, 'slab', 'Секция A: Перегородка', mat, color));
     comps.push(buildBoxC(-w/2+t, -d1-t, -d/2, -d/2+d1, 0, t, 'slab', 'Секция A: Дно', mat, color));
@@ -939,7 +921,6 @@ function buildCornerFromSpec(spec, mat, color, t) {
         }
     }
     
-    // Секция B (вертикальная)
     comps.push(buildBoxC(-d1-t, -d1, -d/2+d1, d/2, 0, h, 'slab', 'Секция B: Боковина задняя', mat, color));
     comps.push(buildBoxC(-w/2, -w/2+t, -d/2+d1, d/2, 0, h, 'slab', 'Секция B: Боковина правая', mat, color));
     comps.push(buildBoxC(-w/2, -w/2+t, -d/2+d1, d/2, 0, t, 'slab', 'Секция B: Дно', mat, color));
@@ -969,20 +950,17 @@ function buildBoxC(x0, x1, z0, z1, y0, y1, type, name, mat, color){
         rotX: 0, rotY: 0, rotZ: 0, color, material: mat, hidden: false };
 }
 
-// Настройки ИИ
 function onProviderChange() {
     const p = document.getElementById('aiProvider').value;
     const endpoints = {
-        'openai': 'https://api.openai.com/v1/chat/completions',
-        'openrouter': 'https://openrouter.ai/api/v1/chat/completions',
         'ollama': 'http://localhost:11434/v1/chat/completions',
-        'custom': 'https://api.example.com/v1/chat/completions'
+        'openai': 'https://api.openai.com/v1/chat/completions',
+        'openrouter': 'https://openrouter.ai/api/v1/chat/completions'
     };
     const models = {
+        'ollama': 'qwen2.5:7b',
         'openai': 'gpt-4o-mini',
-        'openrouter': 'anthropic/claude-3.5-sonnet',
-        'ollama': 'llama3.1',
-        'custom': 'gpt-4o-mini'
+        'openrouter': 'anthropic/claude-3.5-sonnet'
     };
     document.getElementById('aiEndpoint').value = endpoints[p];
     document.getElementById('aiModel').value = models[p];
@@ -1002,10 +980,10 @@ function loadAIConfig() {
     try {
         const s = JSON.parse(localStorage.getItem('furnAIConfig'));
         if (s) {
-            document.getElementById('aiProvider').value = s.provider || 'openai';
-            document.getElementById('aiModel').value = s.model || 'gpt-4o-mini';
+            document.getElementById('aiProvider').value = s.provider || 'ollama';
+            document.getElementById('aiModel').value = s.model || 'qwen2.5:7b';
             document.getElementById('aiKey').value = s.key || '';
-            document.getElementById('aiEndpoint').value = s.endpoint || 'https://api.openai.com/v1/chat/completions';
+            document.getElementById('aiEndpoint').value = s.endpoint || 'http://localhost:11434/v1/chat/completions';
         }
     } catch(e){}
 }
@@ -1023,7 +1001,7 @@ async function testAI() {
     } catch (err) {
         resultDiv.classList.remove('loading');
         resultDiv.classList.add('error');
-        resultDiv.innerHTML = `<b>❌ Ошибка:</b> ${esc(err.message)}`;
+        resultDiv.innerHTML = `<b>❌ Ошибка:</b> ${esc(err.message)}<br><small>Убедитесь, что Ollama запущена и модель qwen2.5:7b скачана.</small>`;
     }
 }
 
