@@ -111,14 +111,13 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 <div id="historyList" style="max-height:90px;overflow-y:auto;margin-bottom:8px;border:1px solid #e2e8f0;border-radius:4px;padding:4px"></div>
 
 <details class="ai-config" open>
-<summary>🔑 Настройки ИИ (Ollama)</summary>
+<summary>🔑 Настройки ИИ</summary>
 <div class="row">
 <div>
 <label>Провайдер</label>
 <select id="aiProvider" onchange="onProviderChange()">
 <option value="ollama" selected>Ollama (локально)</option>
-<option value="openai">OpenAI</option>
-<option value="openrouter">OpenRouter</option>
+<option value="openrouter">OpenRouter (облако)</option>
 </select>
 </div>
 <div>
@@ -132,7 +131,7 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 </div>
 <div class="fg">
 <label>URL эндпоинта</label>
-<input type="text" id="aiEndpoint" value="http://localhost:11434/v1/chat/completions">
+<input type="text" id="aiEndpoint" value="/api/ai">
 </div>
 <div class="btn-row">
 <button class="sec small" onclick="saveAIConfig()">💾 Сохранить</button>
@@ -147,7 +146,7 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 • низкая тумба под ТВ с 2 ящиками и открытой полкой
 • письменный стол ширина 1200 глубина 600 высота 750"></textarea>
 <div class="example-chips">
-<span class="chip" onclick="setExample('высокий шкаф для одежды с зеркальными дверцами и 3 полками')">👔 Шкаф с зеркалом</span>
+<span class="chip" onclick="setExample('высокий шкаф для одежды с зеркальными дверцами и 3 полками')"> Шкаф с зеркалом</span>
 <span class="chip" onclick="setExample('низкая тумба под ТВ с 2 ящиками и открытой полкой')">📺 Тумба под ТВ</span>
 <span class="chip" onclick="setExample('письменный стол ширина 1200 глубина 600 высота 750')">💼 Письменный стол</span>
 <span class="chip" onclick="setExample('угловой шкаф ширина 2400 глубина 1200 высота 2200, зеркальные фасады')">📐 Угловой шкаф</span>
@@ -165,7 +164,7 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 <option value="">— Выберите —</option>
 <option value="simple-table">🍽️ Стол</option>
 <option value="chair">🪑 Стул</option>
-<option value="cabinet">🗄️ Шкаф</option>
+<option value="cabinet">️ Шкаф</option>
 <option value="shelf">📚 Стеллаж</option>
 <option value="corner">📐 Угловой шкаф</option>
 </select>
@@ -217,7 +216,7 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 <option value="50" selected>Сетка: 50</option>
 </select>
 <button class="sec" onclick="snapToNeighbors()">🧲 К соседям</button>
-<button class="sec" onclick="checkCollisions(true)">⚠️ Стыки</button>
+<button class="sec" onclick="checkCollisions(true)">️ Стыки</button>
 <button class="sec" onclick="detachTransform()">✕</button>
 </div>
 <div class="edit-panel hidden" id="editPanel">
@@ -251,7 +250,7 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 </div>
 <div class="view-toggle">
 <button onclick="toggleView('assembled')">🔧 Собрано</button>
-<button onclick="toggleView('exploded')">💥 Разобрано</button>
+<button onclick="toggleView('exploded')"> Разобрано</button>
 <button onclick="toggleView('dimensions')">📐 Размеры</button>
 </div>
 </div>
@@ -268,7 +267,7 @@ th{background:#f1f5f9;font-weight:600;font-size:.72rem}
 </div>
 
 <div id="cut" class="tc">
-<div class="btn-row"><button class="sec" onclick="window.print()">🖨 Печать раскроя</button></div>
+<div class="btn-row"><button class="sec" onclick="window.print()"> Печать раскроя</button></div>
 <div class="st" id="cStats"></div>
 <div id="cMaps"></div>
 </div>
@@ -534,7 +533,7 @@ function checkCollisions(showMsg){
         }
     }
     colliding = found; refreshHighlight();
-    if (showMsg || found.size) showHint(found.size ? `⚠️ Пересекаются деталей: ${found.size}` : '✅ Пересечений нет', found.size > 0);
+    if (showMsg || found.size) showHint(found.size ? `️ Пересекаются деталей: ${found.size}` : '✅ Пересечений нет', found.size > 0);
 }
 
 function rotateSelectionAroundCenter(deltaDeg){
@@ -620,11 +619,16 @@ const AI_SYSTEM_PROMPT = `Ты — эксперт-конструктор кор�
 
 async function parseWithAI(text) {
     const model = document.getElementById('aiModel').value || 'qwen2.5:7b';
-    const endpoint = document.getElementById('aiEndpoint').value || 'http://localhost:11434/v1/chat/completions';
+    const endpoint = document.getElementById('aiEndpoint').value || '/api/ai';
     const key = document.getElementById('aiKey').value.trim();
+    const provider = document.getElementById('aiProvider').value;
     
     const headers = { 'Content-Type': 'application/json' };
     if (key) headers['Authorization'] = `Bearer ${key}`;
+    if (provider === 'openrouter') {
+        headers['HTTP-Referer'] = window.location.href;
+        headers['X-Title'] = 'Furniture Constructor';
+    }
     
     const body = {
         model: model,
@@ -649,10 +653,10 @@ async function parseWithAI(text) {
     
     const data = await response.json();
     
-    // Безопасное извлечение ответа (как в curl тесте)
+    // Безопасное извлечение ответа
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        console.error("Неожиданный ответ от Ollama:", data);
-        throw new Error('Ollama вернула неожиданный формат ответа. Проверьте, что модель запущена: ollama run qwen2.5:7b');
+        console.error("Неожиданный ответ:", data);
+        throw new Error('ИИ вернула неожиданный формат ответа');
     }
     
     let content = data.choices[0].message.content || '';
@@ -660,8 +664,8 @@ async function parseWithAI(text) {
     // Извлекаем только JSON-часть
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-        console.error("Не удалось найти JSON в ответе:", content);
-        throw new Error('ИИ не вернул корректный JSON. Ответ: ' + content.slice(0, 100));
+        console.error("Не удалось найти JSON:", content);
+        throw new Error('ИИ не вернула корректный JSON');
     }
     
     return normalizeAIParsed(JSON.parse(jsonMatch[0]));
@@ -778,7 +782,6 @@ async function buildFromDescription(forceLocal = false) {
             const key = document.getElementById('aiKey').value.trim();
             const provider = document.getElementById('aiProvider').value;
             if (!key && provider === 'ollama') {
-                // Для Ollama ключ не нужен, но если его нет и это не ollama, используем локальный
                 parsed = await parseWithAI(desc);
                 source = document.getElementById('aiModel').value;
             } else if (!key) {
@@ -805,7 +808,7 @@ async function buildFromDescription(forceLocal = false) {
     } catch (err) {
         resultDiv.classList.remove('loading');
         resultDiv.classList.add('error');
-        resultDiv.innerHTML = `<b>❌ Ошибка:</b> ${esc(err.message)}<br><small>Попробуйте локальный парсер (кнопка ⚙️) или проверьте, что Ollama запущена.</small>`;
+        resultDiv.innerHTML = `<b>❌ Ошибка:</b> ${esc(err.message)}<br><small>Попробуйте локальный парсер (кнопка ️) или проверьте настройки ИИ.</small>`;
         console.error("AI Build Error:", err);
     }
 }
@@ -953,14 +956,12 @@ function buildBoxC(x0, x1, z0, z1, y0, y1, type, name, mat, color){
 function onProviderChange() {
     const p = document.getElementById('aiProvider').value;
     const endpoints = {
-        'ollama': 'http://localhost:11434/v1/chat/completions',
-        'openai': 'https://api.openai.com/v1/chat/completions',
+        'ollama': '/api/ai',
         'openrouter': 'https://openrouter.ai/api/v1/chat/completions'
     };
     const models = {
         'ollama': 'qwen2.5:7b',
-        'openai': 'gpt-4o-mini',
-        'openrouter': 'anthropic/claude-3.5-sonnet'
+        'openrouter': 'google/gemma-2-2b-it:free'
     };
     document.getElementById('aiEndpoint').value = endpoints[p];
     document.getElementById('aiModel').value = models[p];
@@ -983,7 +984,7 @@ function loadAIConfig() {
             document.getElementById('aiProvider').value = s.provider || 'ollama';
             document.getElementById('aiModel').value = s.model || 'qwen2.5:7b';
             document.getElementById('aiKey').value = s.key || '';
-            document.getElementById('aiEndpoint').value = s.endpoint || 'http://localhost:11434/v1/chat/completions';
+            document.getElementById('aiEndpoint').value = s.endpoint || '/api/ai';
         }
     } catch(e){}
 }
@@ -1001,7 +1002,7 @@ async function testAI() {
     } catch (err) {
         resultDiv.classList.remove('loading');
         resultDiv.classList.add('error');
-        resultDiv.innerHTML = `<b>❌ Ошибка:</b> ${esc(err.message)}<br><small>Убедитесь, что Ollama запущена и модель qwen2.5:7b скачана.</small>`;
+        resultDiv.innerHTML = `<b>❌ Ошибка:</b> ${esc(err.message)}<br><small>Проверьте настройки ИИ и убедитесь, что сервер запущен.</small>`;
     }
 }
 
@@ -1235,7 +1236,7 @@ function renderComponentsList(){
     list.innerHTML = shown.map(o => {
         const c = o.c, i = o.i;
         const inBlock = blocks.find(b => b.componentIndices.includes(i));
-        return `<div class="comp-item ${c.hidden ? 'hidden-part' : ''}" style="${selection.has(i) ? 'border-color:#2563eb;background:#eff6ff' : ''}"><div class="comp-header"><span class="badge ${inBlock ? 'badge-block' : 'badge-custom'}">${esc(c.type)}${inBlock ? ' 📦' : ''}</span><input type="text" value="${esc(c.name)}" onchange="updateComponent(${i},'name',this.value)" style="flex:1;margin:0 6px;font-size:.78rem"><button class="small" onclick="toggleHidden(${i},event)">${c.hidden ? '🙈' : '👁'}</button><button class="danger small" onclick="removeComponent(${i})">✕</button></div><div class="row"><div><label>Д</label><input type="number" value="${c.l}" onchange="updateComponent(${i},'l',this.value)" style="font-size:.75rem"></div><div><label>Ш</label><input type="number" value="${c.w}" onchange="updateComponent(${i},'w',this.value)" style="font-size:.75rem"></div><div><label>В</label><input type="number" value="${c.th}" onchange="updateComponent(${i},'th',this.value)" style="font-size:.75rem"></div></div><div class="row"><div><label>X</label><input type="number" value="${c.x}" onchange="updateComponent(${i},'x',this.value)" style="font-size:.75rem"></div><div><label>Y</label><input type="number" value="${c.y}" onchange="updateComponent(${i},'y',this.value)" style="font-size:.75rem"></div><div><label>Z</label><input type="number" value="${c.z}" onchange="updateComponent(${i},'z',this.value)" style="font-size:.75rem"></div></div><div class="row"><div><label>Материал</label><select class="mat-sel" onchange="setCompMaterial(${i},this.value)">${matOpts.replace(`value="${c.material||defaultMat()}"`, `value="${c.material||defaultMat()}" selected`)}</select></div></div></div>`;
+        return `<div class="comp-item ${c.hidden ? 'hidden-part' : ''}" style="${selection.has(i) ? 'border-color:#2563eb;background:#eff6ff' : ''}"><div class="comp-header"><span class="badge ${inBlock ? 'badge-block' : 'badge-custom'}">${esc(c.type)}${inBlock ? ' 📦' : ''}</span><input type="text" value="${esc(c.name)}" onchange="updateComponent(${i},'name',this.value)" style="flex:1;margin:0 6px;font-size:.78rem"><button class="small" onclick="toggleHidden(${i},event)">${c.hidden ? '' : '👁'}</button><button class="danger small" onclick="removeComponent(${i})">✕</button></div><div class="row"><div><label>Д</label><input type="number" value="${c.l}" onchange="updateComponent(${i},'l',this.value)" style="font-size:.75rem"></div><div><label>Ш</label><input type="number" value="${c.w}" onchange="updateComponent(${i},'w',this.value)" style="font-size:.75rem"></div><div><label>В</label><input type="number" value="${c.th}" onchange="updateComponent(${i},'th',this.value)" style="font-size:.75rem"></div></div><div class="row"><div><label>X</label><input type="number" value="${c.x}" onchange="updateComponent(${i},'x',this.value)" style="font-size:.75rem"></div><div><label>Y</label><input type="number" value="${c.y}" onchange="updateComponent(${i},'y',this.value)" style="font-size:.75rem"></div><div><label>Z</label><input type="number" value="${c.z}" onchange="updateComponent(${i},'z',this.value)" style="font-size:.75rem"></div></div><div class="row"><div><label>Материал</label><select class="mat-sel" onchange="setCompMaterial(${i},this.value)">${matOpts.replace(`value="${c.material||defaultMat()}"`, `value="${c.material||defaultMat()}" selected`)}</select></div></div></div>`;
     }).join('');
 }
 function clearAll(){
